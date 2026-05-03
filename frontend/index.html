@@ -9,6 +9,79 @@
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <link rel="stylesheet" href="/static/css/style.css" />
+  <style>
+    /* ── Document import ── */
+    .doc-import-section { margin-bottom: 18px; }
+    .doc-toggle-btn {
+      width: 100%; background: transparent; border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px 16px; color: var(--text); font-size: 14px;
+      cursor: pointer; display: flex; align-items: center; justify-content: space-between;
+      font-family: inherit; transition: border-color 0.2s;
+    }
+    .doc-toggle-btn:hover { border-color: var(--primary, #6366f1); }
+    .doc-import-body {
+      border: 1px solid var(--border); border-top: none;
+      border-radius: 0 0 8px 8px; padding: 16px;
+    }
+    .drop-zone {
+      border: 2px dashed var(--border); border-radius: 8px; padding: 24px;
+      text-align: center; cursor: pointer; color: var(--muted); font-size: 13px;
+      transition: border-color 0.2s, background 0.2s; margin-bottom: 12px;
+    }
+    .drop-zone:hover, .drop-zone.drag-over {
+      border-color: var(--primary, #6366f1);
+      background: rgba(99,102,241,.06);
+    }
+    .drop-zone-icon { font-size: 28px; margin-bottom: 6px; }
+    .uploaded-files-list { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+    .file-chip {
+      background: var(--card-bg); border: 1px solid var(--border); border-radius: 20px;
+      padding: 4px 10px; font-size: 12px; color: var(--muted);
+      display: flex; align-items: center; gap: 6px;
+    }
+    .file-chip-rm { cursor: pointer; color: #f43f5e; font-size: 15px; line-height: 1; }
+    /* ── Modal ── */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,.75); z-index: 1000;
+      display: flex; align-items: center; justify-content: center; padding: 16px;
+    }
+    .modal-overlay.hidden { display: none !important; }
+    .modal-box {
+      background: var(--card-bg, #1a1f35); border: 1px solid var(--border);
+      border-radius: 12px; padding: 24px; width: 100%; max-width: 580px;
+      max-height: 82vh; overflow-y: auto;
+    }
+    .modal-header {
+      display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;
+    }
+    .modal-header h3 { margin: 0; font-size: 17px; }
+    .extract-item {
+      background: var(--bg, #0f1221); border: 1px solid var(--border); border-radius: 8px;
+      padding: 10px 12px; margin-bottom: 8px; display: flex; align-items: flex-start; gap: 10px;
+    }
+    .extract-item input[type=checkbox] { margin-top: 3px; flex-shrink: 0; accent-color: var(--primary, #6366f1); }
+    .extract-item-name { font-size: 14px; font-weight: 600; }
+    .extract-item-sub { font-size: 12px; color: var(--muted); margin-top: 3px; }
+    /* ── Restore banner ── */
+    .restore-banner {
+      background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px;
+      padding: 12px 16px; margin-bottom: 16px;
+      display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+    }
+    /* ── Toast ── */
+    .toast {
+      background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px;
+      padding: 10px 16px; font-size: 13px; color: var(--text);
+      box-shadow: 0 4px 16px rgba(0,0,0,.4); animation: toastIn .2s ease;
+    }
+    .toast.success { border-color: #22d3a0; }
+    .toast.error   { border-color: #f43f5e; }
+    @keyframes toastIn {
+      from { transform: translateX(60px); opacity: 0; }
+      to   { transform: translateX(0);    opacity: 1; }
+    }
+    .btn-sm { padding: 6px 12px !important; font-size: 12px !important; }
+  </style>
 </head>
 <body>
 
@@ -69,6 +142,39 @@
           <p>Cerca per ISIN (es. <code>IE00B3RBWM25</code>) o Ticker (es. <code>MSFT</code>)</p>
         </div>
 
+        <!-- Restore saved portfolio banner -->
+        <div class="restore-banner hidden" id="restoreBanner">
+          <span style="font-size:14px;color:var(--muted)" id="restoreBannerText">Portafoglio salvato trovato.</span>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-primary btn-sm" id="restoreBtn" type="button">Ripristina</button>
+            <button class="btn btn-ghost btn-sm" id="dismissRestoreBtn" type="button">Ignora</button>
+          </div>
+        </div>
+
+        <!-- Import from bank document -->
+        <div class="doc-import-section">
+          <button class="doc-toggle-btn" id="docToggleBtn" type="button">
+            <span>📄 Importa da documento bancario</span>
+            <span id="docToggleArrow">▼</span>
+          </button>
+          <div class="doc-import-body hidden" id="docImportBody">
+            <div class="drop-zone" id="dropZone">
+              <div class="drop-zone-icon">📂</div>
+              <p style="margin:0 0 10px">Trascina i PDF delle tue banche qui<br/>
+                <small>Più file e banche diverse contemporaneamente</small></p>
+              <input type="file" id="fileInput" accept=".pdf,.txt" multiple style="display:none" />
+              <button class="btn btn-ghost btn-sm" id="browseBtn" type="button">Scegli file</button>
+            </div>
+            <div class="uploaded-files-list" id="uploadedFilesList"></div>
+            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+              <button class="btn btn-primary" id="extractBtn" style="display:none" type="button">
+                🤖 Estrai con AI
+              </button>
+              <span id="extractStatus" style="color:var(--muted);font-size:13px"></span>
+            </div>
+          </div>
+        </div>
+
         <!-- Search bar -->
         <div class="search-bar-wrap">
           <div class="search-bar">
@@ -110,6 +216,8 @@
         <div class="action-row">
           <button id="analyzeBtn" class="btn btn-primary btn-lg" disabled>📊 Genera Dashboard</button>
           <button id="modeToggle" class="btn btn-ghost">EUR Inserisci importi</button>
+          <button id="saveBtn" class="btn btn-ghost" style="display:none" type="button">💾 Salva</button>
+          <button id="loadBtn" class="btn btn-ghost" type="button">📂 Carica salvato</button>
           <button id="demoBtn" class="btn btn-ghost">Carica portafoglio demo</button>
           <button id="clearBtn" class="btn btn-ghost btn-danger">🗑 Svuota</button>
         </div>
@@ -293,6 +401,29 @@
       <p class="footer-copy">© 2025 PortfolioLab. Solo a scopo informativo. Non è consulenza finanziaria.</p>
     </div>
   </footer>
+
+  <!-- ══════════ EXTRACTION MODAL ══════════ -->
+  <div id="extractModal" class="modal-overlay hidden">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>📊 Strumenti estratti dal documento</h3>
+        <button class="btn-rm" id="modalCloseBtn" type="button" style="font-size:20px">×</button>
+      </div>
+      <p style="color:var(--muted);font-size:13px;margin:0 0 14px">
+        Seleziona gli strumenti da importare nel portafoglio
+      </p>
+      <div id="extractedItemsList"></div>
+      <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap;align-items:center">
+        <button class="btn btn-ghost btn-sm" id="selectAllExtracted" type="button">Seleziona tutti</button>
+        <button class="btn btn-ghost btn-sm" id="deselectAllExtracted" type="button">Deseleziona tutti</button>
+        <button class="btn btn-primary" id="importSelectedBtn" type="button">Importa selezionati</button>
+        <span id="importStatus" style="color:var(--muted);font-size:13px"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast container -->
+  <div id="toastContainer" style="position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none"></div>
 
   <script src="/static/js/app.js"></script>
 </body>

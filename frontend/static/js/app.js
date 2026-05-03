@@ -524,3 +524,296 @@ function renderCurrencyRisk(currencyExp) {
 
 // ── Init ────────────────────────────────────
 updateTotal();
+checkSavedPortfolio();
+
+// ════════════════════════════════════════════
+// DOCUMENT IMPORT
+// ════════════════════════════════════════════
+
+let uploadedDocs = [];      // File objects
+let extractedItems = [];    // items from LLM
+
+// DOM refs (new)
+const docToggleBtn     = document.getElementById('docToggleBtn');
+const docImportBody    = document.getElementById('docImportBody');
+const docToggleArrow   = document.getElementById('docToggleArrow');
+const dropZone         = document.getElementById('dropZone');
+const fileInput        = document.getElementById('fileInput');
+const browseBtn        = document.getElementById('browseBtn');
+const extractBtn       = document.getElementById('extractBtn');
+const extractStatus    = document.getElementById('extractStatus');
+const uploadedFilesList = document.getElementById('uploadedFilesList');
+const extractModal     = document.getElementById('extractModal');
+const extractedItemsList = document.getElementById('extractedItemsList');
+const modalCloseBtn    = document.getElementById('modalCloseBtn');
+const selectAllBtn     = document.getElementById('selectAllExtracted');
+const deselectAllBtn   = document.getElementById('deselectAllExtracted');
+const importSelectedBtn = document.getElementById('importSelectedBtn');
+const importStatus     = document.getElementById('importStatus');
+const saveBtn          = document.getElementById('saveBtn');
+const loadBtn          = document.getElementById('loadBtn');
+const restoreBanner    = document.getElementById('restoreBanner');
+const restoreBannerText = document.getElementById('restoreBannerText');
+const restoreBtn       = document.getElementById('restoreBtn');
+const dismissRestoreBtn = document.getElementById('dismissRestoreBtn');
+const toastContainer   = document.getElementById('toastContainer');
+
+// ── Toggle upload panel ──────────────────────
+docToggleBtn.addEventListener('click', () => {
+  const hidden = docImportBody.classList.toggle('hidden');
+  docToggleArrow.textContent = hidden ? '▼' : '▲';
+});
+
+// ── Drop zone ────────────────────────────────
+browseBtn.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('click', (e) => { if (e.target !== browseBtn) fileInput.click(); });
+
+fileInput.addEventListener('change', () => addFiles([...fileInput.files]));
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  addFiles([...e.dataTransfer.files]);
+});
+
+function addFiles(newFiles) {
+  newFiles.forEach(f => {
+    if (!uploadedDocs.find(x => x.name === f.name && x.size === f.size)) {
+      uploadedDocs.push(f);
+    }
+  });
+  renderFileChips();
+  fileInput.value = '';
+}
+
+function renderFileChips() {
+  uploadedFilesList.innerHTML = uploadedDocs.map((f, i) => `
+    <div class="file-chip">
+      📄 ${f.name}
+      <span class="file-chip-rm" data-i="${i}" title="Rimuovi">×</span>
+    </div>
+  `).join('');
+  uploadedFilesList.querySelectorAll('.file-chip-rm').forEach(el => {
+    el.addEventListener('click', () => {
+      uploadedDocs.splice(+el.dataset.i, 1);
+      renderFileChips();
+    });
+  });
+  extractBtn.style.display = uploadedDocs.length ? 'inline-flex' : 'none';
+  extractStatus.textContent = '';
+}
+
+// ── Extract ──────────────────────────────────
+extractBtn.addEventListener('click', async () => {
+  if (!uploadedDocs.length) return;
+
+  extractBtn.disabled = true;
+  extractBtn.textContent = '⏳ Analisi in corso…';
+  extractStatus.textContent = '';
+
+  const form = new FormData();
+  uploadedDocs.forEach(f => form.append('files', f));
+
+  try {
+    const res = await fetch(`${API}/api/extract-from-documents`, { method: 'POST', body: form });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || 'Errore estrazione');
+    }
+    const data = await res.json();
+    extractedItems = data.items || [];
+    if (!extractedItems.length) {
+      extractStatus.textContent = 'Nessuno strumento trovato nel documento.';
+    } else {
+      openExtractModal();
+    }
+  } catch (e) {
+    extractStatus.textContent = '❌ ' + e.message;
+  } finally {
+    extractBtn.disabled = false;
+    extractBtn.textContent = '🤖 Estrai con AI';
+  }
+});
+
+// ── Extraction modal ─────────────────────────
+function openExtractModal() {
+  extractedItemsList.innerHTML = extractedItems.map((item, i) => {
+    const sub = [
+      item.isin           ? `ISIN: ${item.isin}`                                    : '',
+      item.ticker         ? `Ticker: ${item.ticker}`                                : '',
+      item.quantity       != null ? `Qtà: ${item.quantity}`                         : '',
+      item.purchase_price != null ? `P.acq: €${fmtAmt(item.purchase_price)}`       : '',
+      item.value          != null ? `Valore: €${fmtAmt(item.value)}`                : '',
+      item.purchase_date  ? `Data acq: ${item.purchase_date}`                       : '',
+    ].filter(Boolean).join(' · ');
+    return `
+      <div class="extract-item">
+        <input type="checkbox" id="ei${i}" data-i="${i}" checked />
+        <div class="extract-item-info">
+          <div class="extract-item-name">${item.name || item.isin || item.ticker || 'Strumento ' + (i+1)}</div>
+          ${sub ? `<div class="extract-item-sub">${sub}</div>` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+  importStatus.textContent = '';
+  extractModal.classList.remove('hidden');
+}
+
+modalCloseBtn.addEventListener('click', () => extractModal.classList.add('hidden'));
+extractModal.addEventListener('click', e => { if (e.target === extractModal) extractModal.classList.add('hidden'); });
+
+selectAllBtn.addEventListener('click', () => {
+  extractedItemsList.querySelectorAll('input[type=checkbox]').forEach(c => c.checked = true);
+});
+deselectAllBtn.addEventListener('click', () => {
+  extractedItemsList.querySelectorAll('input[type=checkbox]').forEach(c => c.checked = false);
+});
+
+// ── Import selected ──────────────────────────
+importSelectedBtn.addEventListener('click', async () => {
+  const checked = [...extractedItemsList.querySelectorAll('input[type=checkbox]:checked')]
+    .map(c => extractedItems[+c.dataset.i]);
+
+  if (!checked.length) { importStatus.textContent = 'Seleziona almeno uno strumento.'; return; }
+
+  const hasValues = checked.some(x => x.value != null && x.value > 0);
+  if (hasValues && inputMode !== 'amount') {
+    inputMode = 'amount';
+    modeToggleBtn.textContent = '% Inserisci percentuali';
+    modeToggleBtn.classList.add('mode-amount-active');
+    allocHeader.textContent = `Importo (${baseCurrency})`;
+    liquiditaLbl.textContent = `💰 Liquidità (${baseCurrency})`;
+  }
+
+  importSelectedBtn.disabled = true;
+  let ok = 0, fail = 0;
+  for (const item of checked) {
+    importStatus.textContent = `Risolvo ${item.isin || item.ticker || item.name}…`;
+    const q = item.isin || item.ticker;
+    if (!q) { fail++; continue; }
+    try {
+      const res = await fetch(`${API}/api/search?q=${encodeURIComponent(q)}`);
+      if (!res.ok) throw new Error();
+      const d = await res.json();
+      const h = { ...d };
+      if (inputMode === 'amount') {
+        h.amount = item.value ?? item.quantity ?? 0;
+        h.allocation = 0;
+      } else {
+        h.allocation = 0;
+        h.amount = null;
+      }
+      addHolding(h);
+      ok++;
+    } catch {
+      fail++;
+    }
+  }
+
+  importStatus.textContent = '';
+  importSelectedBtn.disabled = false;
+  extractModal.classList.add('hidden');
+  updateTotal();
+  showToast(`Importati ${ok} strumenti${fail ? `, ${fail} non trovati` : ''}.`, ok > 0 ? 'success' : 'error');
+
+  if (ok > 0) {
+    saveBtn.style.display = 'inline-flex';
+    docImportBody.classList.add('hidden');
+    docToggleArrow.textContent = '▼';
+  }
+});
+
+// ════════════════════════════════════════════
+// SAVE / LOAD PORTFOLIO
+// ════════════════════════════════════════════
+
+saveBtn.addEventListener('click', savePortfolio);
+
+async function savePortfolio() {
+  const liqVal = parseFloat(liquiditaInp.value || 0);
+  const payload = {
+    holdings: portfolio,
+    liquidita: liqVal,
+    inputMode,
+    savedAt: new Date().toISOString(),
+  };
+  try {
+    const res = await fetch(`${API}/api/portfolio/save`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error();
+    showToast('Portafoglio salvato.', 'success');
+  } catch {
+    showToast('Errore nel salvataggio.', 'error');
+  }
+}
+
+loadBtn.addEventListener('click', async () => {
+  const data = await fetchSavedPortfolio();
+  if (!data || !data.holdings?.length) {
+    showToast('Nessun portafoglio salvato trovato.', 'error');
+    return;
+  }
+  applyLoadedPortfolio(data);
+  showToast('Portafoglio ripristinato.', 'success');
+});
+
+restoreBtn.addEventListener('click', async () => {
+  const data = await fetchSavedPortfolio();
+  if (data) applyLoadedPortfolio(data);
+  restoreBanner.classList.add('hidden');
+  showToast('Portafoglio ripristinato.', 'success');
+});
+
+dismissRestoreBtn.addEventListener('click', () => restoreBanner.classList.add('hidden'));
+
+async function fetchSavedPortfolio() {
+  try {
+    const res = await fetch(`${API}/api/portfolio/load`);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch { return null; }
+}
+
+async function checkSavedPortfolio() {
+  const data = await fetchSavedPortfolio();
+  if (!data || !data.holdings?.length) return;
+  const d = new Date(data.savedAt);
+  const dateStr = isNaN(d) ? '' : ` (${d.toLocaleDateString('it-IT')})`;
+  restoreBannerText.textContent = `Portafoglio salvato trovato${dateStr} — ${data.holdings.length} strumenti.`;
+  restoreBanner.classList.remove('hidden');
+}
+
+function applyLoadedPortfolio(data) {
+  portfolio = data.holdings || [];
+  const liq = data.liquidita ?? 0;
+  liquiditaInp.value = liq;
+
+  const mode = data.inputMode || 'pct';
+  if (mode !== inputMode) modeToggleBtn.click();
+
+  renderTable();
+  updateTotal();
+  saveBtn.style.display = portfolio.length ? 'inline-flex' : 'none';
+  restoreBanner.classList.add('hidden');
+}
+
+// ── keep save button in sync with portfolio state ──
+// analyzeBtn.disabled mirrors portfolio.length === 0, so observe it
+new MutationObserver(() => {
+  if (saveBtn) saveBtn.style.display = !analyzeBtn.disabled ? 'inline-flex' : 'none';
+}).observe(analyzeBtn, { attributes: true, attributeFilter: ['disabled'] });
+
+// ── Toast helper ─────────────────────────────
+function showToast(msg, type = '') {
+  const el = document.createElement('div');
+  el.className = `toast${type ? ' ' + type : ''}`;
+  el.textContent = msg;
+  toastContainer.appendChild(el);
+  setTimeout(() => el.remove(), 3500);
+}

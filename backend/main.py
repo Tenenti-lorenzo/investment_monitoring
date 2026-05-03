@@ -1,13 +1,22 @@
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 import yfinance as yf
 import requests
 import re
+import os
+import io
+import json
 from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv()
+
+import anthropic
+import pypdf
 
 app = FastAPI(title="Portfolio Dashboard API", version="1.0.0")
 
@@ -354,3 +363,129 @@ def analyze_portfolio(req: PortfolioRequest):
             "aggressiveness": aggressiveness,
         }
     }
+
+
+# ─── Document extraction via LLM ────────────────────────────────────────────
+
+DATA_DIR = Path(__file__).parent.parent / "data"
+PORTFOLIO_FILE = DATA_DIR / "portfolio.json"
+
+
+class ExtractedInstrument(BaseModel):
+    isin: str = ""
+    ticker: str = ""
+    name: str = ""
+    quantity: Optional[float] = None
+    purchase_price: Optional[float] = None   # prezzo medio di acquisto per unità in EUR
+    value: Optional[float] = None            # controvalore corrente in EUR
+    purchase_date: Optional[str] = None      # data acquisto YYYY-MM-DD
+
+
+class ExtractionResponse(BaseModel):
+    items: List[ExtractedInstrument]
+
+
+def _extract_pdf_text(content: bytes) -> str:
+    try:
+        reader = pypdf.PdfReader(io.BytesIO(content))
+        pages = [page.extract_text() or "" for page in reader.pages]
+        return "\n".join(pages)
+    except Exception as e:
+        return f"[Errore lettura PDF: {e}]"
+
+
+@app.post("/api/extract-from-documents", response_model=ExtractionResponse)
+async def extract_from_documents(files: List[UploadFile] = File(...)):
+    api_key = os.getenv("ANTHROPIC_API_KEY")
+    if not api_key:
+        raise HTTPException(400, "ANTHROPIC_API_KEY non configurata nel file .env")
+
+    combined_text = ""
+    for f in files:
+        raw = await f.read()
+        name = (f.filename or "").lower()
+        if name.endswith(".pdf"):
+            text = _extract_pdf_text(raw)
+        else:
+            text = raw.decode("utf-8", errors="ignore")
+        combined_text += f"\n\n=== DOCUMENTO: {f.filename} ===\n{text}"
+
+    if not combined_text.strip():
+        raise HTTPException(400, "Impossibile estrarre testo dai documenti caricati")
+
+    prompt = (
+        "Analizza questi documenti bancari/finanziari ed estrai tutti gli strumenti finanziari "
+        "(azioni, ETF, fondi, obbligazioni). "
+        "Per ogni strumento restituisci un oggetto JSON con:\n"
+        "- isin: codice ISIN (12 caratteri, es. IE00B3RBWM25) se presente, altrimenti stringa vuota\n"
+        "- ticker: simbolo ticker (es. MSFT) se presente, altrimenti stringa vuota\n"
+        "- name: nome completo dello strumento\n"
+        "- quantity: numero di titoli/quote posseduti (numero con decimali, null se assente)\n"
+        "- purchase_price: prezzo medio di acquisto per singola unità in EUR (numero, null se assente)\n"
+        "- value: controvalore corrente in EUR (numero, null se assente)\n"
+        "- purchase_date: data di acquisto nel formato YYYY-MM-DD (stringa, null se assente)\n\n"
+        "Escludi: conti correnti, depositi bancari, liquidità/cash.\n"
+        "Rispondi SOLO con JSON valido, nessun testo aggiuntivo:\n"
+        '{"items": [{"isin": "...", "ticker": "...", "name": "...", "quantity": 10.5, '
+        '"purchase_price": 45.20, "value": 3500.00, "purchase_date": "2023-04-15"}]}\n\n'
+        f"DOCUMENTI:\n{combined_text[:18000]}"
+    )
+
+    model = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-6")
+    client = anthropic.Anthropic(api_key=api_key)
+    response = client.messages.create(
+        model=model,
+        max_tokens=4096,
+        messages=[{"role": "user", "content": prompt}],
+    )
+
+    raw_text = response.content[0].text.strip()
+    start = raw_text.find("{")
+    end = raw_text.rfind("}") + 1
+    if start < 0 or end <= start:
+        raise HTTPException(500, "La risposta AI non contiene JSON valido")
+    try:
+        parsed = json.loads(raw_text[start:end])
+    except json.JSONDecodeError as e:
+        raise HTTPException(500, f"Errore parsing JSON: {e}")
+
+    try:
+        return ExtractionResponse(**parsed)
+    except Exception as e:
+        raise HTTPException(500, f"Risposta AI non valida: {e}")
+
+
+# ─── Portfolio save / load ────────────────────────────────────────────────────
+
+class PortfolioSave(BaseModel):
+    holdings: list
+    liquidita: float = 0.0
+    inputMode: str = "pct"
+    savedAt: Optional[str] = None
+
+
+@app.post("/api/portfolio/save")
+def save_portfolio(req: PortfolioSave):
+    DATA_DIR.mkdir(exist_ok=True)
+    data = req.model_dump()
+    with open(PORTFOLIO_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    return {"status": "saved", "savedAt": data.get("savedAt")}
+
+
+@app.get("/api/portfolio/load")
+def load_portfolio():
+    if not PORTFOLIO_FILE.exists():
+        return None
+    try:
+        with open(PORTFOLIO_FILE, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+
+@app.delete("/api/portfolio/saved")
+def delete_saved_portfolio():
+    if PORTFOLIO_FILE.exists():
+        PORTFOLIO_FILE.unlink()
+    return {"status": "deleted"}
