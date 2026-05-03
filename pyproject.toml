@@ -1,0 +1,25 @@
+[project]
+name = "investment-monitoring"
+version = "0.1.0"
+description = "PortfolioLab – Portfolio analysis dashboard"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi==0.115.0",
+    "uvicorn[standard]==0.30.6",
+    "yfinance>=0.2.50",
+    "requests==2.32.3",
+    "pydantic==2.9.2",
+    "python-multipart==0.0.12",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["backend"]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.27",
+]

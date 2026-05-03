@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PortfolioLab – Analizza il tuo portafoglio</title>
+  <meta name="description" content="Inserisci i tuoi ISIN e analizza asset allocation, esposizione geografica e metriche del tuo portafoglio." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body>
+
+  <!-- ══════════ TOP AD BANNER (728×90 leaderboard) ══════════ -->
+  <div class="ad-banner-top">
+    <div class="ad-slot ad-leaderboard" data-ad-slot="top-leaderboard">
+      <span class="ad-label">Pubblicità</span>
+      <!-- Google AdSense: sostituisci con il tuo codice -->
+      <!--
+      <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-XXXXXXXXXXXXXXXX" crossorigin="anonymous"></script>
+      <ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-XXXXXXXXXXXXXXXX" data-ad-slot="XXXXXXXXXX" data-ad-format="auto" data-full-width-responsive="true"></ins>
+      <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+      -->
+      <div class="ad-placeholder">728 × 90 — Leaderboard</div>
+    </div>
+  </div>
+
+  <!-- ══════════ NAVBAR ══════════ -->
+  <nav class="navbar">
+    <div class="nav-inner">
+      <a href="/" class="nav-logo">
+        <span class="logo-icon">📊</span>
+        <span class="logo-text">Portfolio<strong>Lab</strong></span>
+      </a>
+      <div class="nav-links">
+        <a href="#analizza">Analizza</a>
+        <a href="#come-funziona">Come funziona</a>
+        <a href="#faq">FAQ</a>
+      </div>
+      <div class="nav-cta">
+        <span class="badge-free">🆓 Gratuito</span>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ══════════ HERO ══════════ -->
+  <section class="hero" id="analizza">
+    <div class="hero-bg"></div>
+    <div class="container">
+      <div class="hero-content">
+        <div class="hero-badge">📈 Analisi portafoglio real-time</div>
+        <h1>Analizza il tuo portafoglio<br /><span class="gradient-text">per ISIN o Ticker</span></h1>
+        <p class="hero-sub">Inserisci i tuoi strumenti finanziari, specifica l'allocazione e ottieni un dashboard completo con asset allocation, esposizione geografica e metriche di rischio.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ MAIN LAYOUT: content + sidebar ══════════ -->
+  <div class="page-layout container">
+
+    <!-- LEFT: main content -->
+    <main class="main-content">
+
+      <!-- ── INPUT PORTAFOGLIO ── -->
+      <section class="card" id="input-section">
+        <div class="card-header">
+          <h2>🔍 Costruisci il tuo portafoglio</h2>
+          <p>Cerca per ISIN (es. <code>IE00B3RBWM25</code>) o Ticker (es. <code>MSFT</code>)</p>
+        </div>
+
+        <!-- Search bar -->
+        <div class="search-bar-wrap">
+          <div class="search-bar">
+            <input type="text" id="searchInput" placeholder="ISIN o Ticker… es. IE00B3RBWM25 o MSFT" autocomplete="off" />
+            <button id="searchBtn" class="btn btn-primary">Cerca</button>
+          </div>
+          <div id="searchResult" class="search-result hidden"></div>
+        </div>
+
+        <!-- Holdings table -->
+        <div class="holdings-input-wrap">
+          <table class="holdings-table" id="holdingsTable">
+            <thead>
+              <tr>
+                <th>Strumento</th>
+                <th>Categoria</th>
+                <th id="allocHeader">Allocazione %</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="holdingsTbody">
+              <tr class="empty-row" id="emptyRow">
+                <td colspan="4" class="empty-cell">Cerca un ISIN o Ticker per aggiungere al portafoglio</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Liquidità + totale -->
+        <div class="liquidity-row">
+          <label id="liquiditaLabel">💰 Liquidità (investibile)</label>
+          <div class="pct-input-wrap">
+            <input type="number" id="liquiditaInput" value="0" min="0" max="100" step="0.1" />
+            <span>%</span>
+          </div>
+          <span id="totalPct" class="total-pct">Totale: 0%</span>
+        </div>
+
+        <div class="action-row">
+          <button id="analyzeBtn" class="btn btn-primary btn-lg" disabled>📊 Genera Dashboard</button>
+          <button id="modeToggle" class="btn btn-ghost">EUR Inserisci importi</button>
+          <button id="demoBtn" class="btn btn-ghost">Carica portafoglio demo</button>
+          <button id="clearBtn" class="btn btn-ghost btn-danger">🗑 Svuota</button>
+        </div>
+      </section>
+
+      <!-- ── AD between form and dashboard ── -->
+      <div class="ad-slot ad-inline" data-ad-slot="mid-content">
+        <span class="ad-label">Pubblicità</span>
+        <div class="ad-placeholder">336 × 280 — Rectangle</div>
+      </div>
+
+      <!-- ── DASHBOARD ── -->
+      <section id="dashboard" class="dashboard hidden">
+
+        <!-- Row 1: Donut + Categoria + Geo -->
+        <div class="dash-grid-3">
+
+          <div class="card">
+            <div class="card-header"><h3>Asset Allocation</h3></div>
+            <div class="donut-wrap">
+              <canvas id="allocationChart"></canvas>
+              <div class="donut-center" id="donutCenter">100%<br/><small>investito</small></div>
+            </div>
+            <div id="allocationLegend" class="chart-legend"></div>
+          </div>
+
+          <div class="card">
+            <div class="card-header"><h3>Allocazione per Categoria</h3></div>
+            <div id="categoryBars" class="category-bars"></div>
+          </div>
+
+          <div class="card">
+            <div class="card-header"><h3>Esposizione Geografica <small>(stima)</small></h3></div>
+            <div id="geoMap" class="geo-map-wrap">
+              <canvas id="geoChart"></canvas>
+            </div>
+            <div id="geoLegend" class="chart-legend"></div>
+            <p class="geo-note">Stima basata sulle partecipazioni sottostanti</p>
+          </div>
+        </div>
+
+        <!-- Row 2: Holdings + Esposizione classe -->
+        <div class="dash-grid-2">
+
+          <div class="card">
+            <div class="card-header">
+              <h3>Holdings</h3>
+              <span class="header-right muted">Allocazione</span>
+            </div>
+            <div id="holdingsList" class="holdings-list"></div>
+          </div>
+
+          <div>
+            <div class="card">
+              <div class="card-header"><h3>Esposizione per Classe</h3></div>
+              <div id="classExposure" class="class-exposure-bar"></div>
+            </div>
+
+            <div class="card" style="margin-top:16px">
+              <div class="card-header">
+                <h3>Rischio Valutario <small>(valuta di quotazione)</small></h3>
+              </div>
+              <div id="currencyRisk" class="category-bars"></div>
+              <p class="geo-note" style="margin-top:8px">Basato sulla valuta di negoziazione di ciascuno strumento</p>
+            </div>
+
+            <!-- ── AD inside right column ── -->
+            <div class="ad-slot ad-square" style="margin-top:16px" data-ad-slot="mid-right">
+              <span class="ad-label">Pubblicità</span>
+              <div class="ad-placeholder">300 × 250 — Rectangle</div>
+            </div>
+
+            <div class="card" style="margin-top:16px">
+              <div class="card-header"><h3>Metriche di Portafoglio <small>(stima)</small></h3></div>
+              <div id="metriche" class="metriche-grid"></div>
+            </div>
+          </div>
+
+        </div>
+
+      </section>
+
+      <!-- ══════════ COME FUNZIONA ══════════ -->
+      <section class="card info-section" id="come-funziona">
+        <div class="card-header"><h2>Come funziona</h2></div>
+        <div class="steps-grid">
+          <div class="step">
+            <div class="step-num">1</div>
+            <h4>Cerca il tuo strumento</h4>
+            <p>Inserisci un ISIN internazionale o un Ticker (es. MSFT, ETH-USD). I dati vengono recuperati in tempo reale.</p>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <h4>Imposta l'allocazione</h4>
+            <p>Per ogni asset specifica la percentuale del portafoglio. Puoi aggiungere anche la quota di liquidità.</p>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <h4>Analizza il dashboard</h4>
+            <p>Ottieni asset allocation, esposizione geografica ponderata, metriche di rischio e profilo del portafoglio.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ══════════ FAQ ══════════ -->
+      <section class="card info-section" id="faq">
+        <div class="card-header"><h2>FAQ</h2></div>
+        <div class="faq-list">
+          <details class="faq-item">
+            <summary>Che dati vengono usati?</summary>
+            <p>I prezzi e i metadati provengono da Yahoo Finance via yfinance. La risoluzione degli ISIN usa OpenFIGI (API gratuita). L'esposizione geografica è una stima euristica basata sulla categoria dello strumento.</p>
+          </details>
+          <details class="faq-item">
+            <summary>Supportate ETF europei con ISIN IE/LU?</summary>
+            <p>Sì. Il backend risolve l'ISIN tramite OpenFIGI per trovare il ticker corrispondente (es. SWRD.L per Londra) e poi recupera i dati da Yahoo Finance.</p>
+          </details>
+          <details class="faq-item">
+            <summary>Le metriche sono accurate?</summary>
+            <p>Rendimento atteso, volatilità e Sharpe Ratio sono stime euristiche basate sulla composizione del portafoglio. Non costituiscono consulenza finanziaria.</p>
+          </details>
+          <details class="faq-item">
+            <summary>I miei dati vengono salvati?</summary>
+            <p>No. Tutto viene elaborato in sessione, nessun dato personale viene memorizzato sul server.</p>
+          </details>
+        </div>
+      </section>
+
+      <!-- ══════════ DISCLAIMER ══════════ -->
+      <div class="disclaimer">
+        ⚠️ <strong>Disclaimer:</strong> Le informazioni presenti su questo sito hanno scopo puramente informativo e non costituiscono consulenza finanziaria, legale o fiscale. Investire comporta rischi, inclusa la possibile perdita del capitale.
+      </div>
+
+    </main>
+
+    <!-- ══════════ RIGHT SIDEBAR ══════════ -->
+    <aside class="sidebar">
+
+      <!-- Sticky ad unit (300×600 half page) -->
+      <div class="sidebar-sticky">
+        <div class="ad-slot ad-sidebar" data-ad-slot="sidebar-halfpage">
+          <span class="ad-label">Pubblicità</span>
+          <div class="ad-placeholder">300 × 600<br/>Half Page</div>
+        </div>
+
+        <!-- Mini widget: glossario -->
+        <div class="widget" style="margin-top:20px">
+          <h4 class="widget-title">📖 Glossario rapido</h4>
+          <dl class="glossary">
+            <dt>ISIN</dt><dd>Codice internazionale di identificazione titoli (12 caratteri)</dd>
+            <dt>ETF</dt><dd>Exchange Traded Fund — fondo indicizzato quotato in borsa</dd>
+            <dt>Sharpe Ratio</dt><dd>Rendimento aggiustato per il rischio. Più è alto, meglio</dd>
+            <dt>Volatilità</dt><dd>Misura le oscillazioni di prezzo annuali (deviazione standard)</dd>
+          </dl>
+        </div>
+
+        <!-- Second ad unit (300×250 rectangle) -->
+        <div class="ad-slot ad-square" style="margin-top:20px" data-ad-slot="sidebar-rectangle">
+          <span class="ad-label">Pubblicità</span>
+          <div class="ad-placeholder">300 × 250<br/>Rectangle</div>
+        </div>
+      </div>
+    </aside>
+
+  </div><!-- /page-layout -->
+
+  <!-- ══════════ FOOTER ══════════ -->
+  <footer class="footer">
+    <!-- Footer ad leaderboard -->
+    <div class="ad-slot ad-leaderboard" style="margin-bottom:24px" data-ad-slot="footer-leaderboard">
+      <span class="ad-label">Pubblicità</span>
+      <div class="ad-placeholder">728 × 90 — Footer Leaderboard</div>
+    </div>
+    <div class="footer-inner">
+      <div class="footer-logo">📊 Portfolio<strong>Lab</strong></div>
+      <div class="footer-links">
+        <a href="#">Privacy Policy</a>
+        <a href="#">Cookie Policy</a>
+        <a href="#">Disclaimer</a>
+        <a href="#">Contatti</a>
+      </div>
+      <p class="footer-copy">© 2025 PortfolioLab. Solo a scopo informativo. Non è consulenza finanziaria.</p>
+    </div>
+  </footer>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
