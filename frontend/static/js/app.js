@@ -4,6 +4,24 @@
 
 const API = '';
 
+// ── Auth helpers ─────────────────────────────
+function _authToken() { return localStorage.getItem('auth_token') || ''; }
+
+async function apiFetch(url, opts = {}) {
+  opts.headers = {
+    ...(opts.headers || {}),
+    'Authorization': `Bearer ${_authToken()}`,
+  };
+  const res = await fetch(url, opts);
+  if (res.status === 401) {
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('auth_username');
+    window.location.href = '/login';
+    throw new Error('Sessione scaduta');
+  }
+  return res;
+}
+
 const CAT_COLORS = {
   'ETF Azionario':       '#8b5cf6',
   'ETF Obbligazionario': '#06b6d4',
@@ -102,7 +120,7 @@ async function doSearch() {
   searchResult.innerHTML = '<span class="spinner"></span> Ricerca in corso…';
 
   try {
-    const res = await fetch(`${API}/api/search?q=${encodeURIComponent(q)}`);
+    const res = await apiFetch(`${API}/api/search?q=${encodeURIComponent(q)}`);
     if (!res.ok) {
       const err = await res.json();
       throw new Error(err.detail || 'Strumento non trovato');
@@ -127,7 +145,7 @@ function renderSearchResult(d) {
   searchResult.innerHTML = `
     <div class="sr-info">
       <div class="sr-name">${d.name}</div>
-      <div class="sr-ticker">${d.ticker}${d.exch ? ' · ' + d.exch : ''}${d.currency ? ' · ' + d.currency : ''}${d.price ? ' · ' + fmtPrice(d.price, d.currency) : ''}</div>
+      <div class="sr-ticker">${d.ticker}${d.exch ? ' · ' + d.exch : ''}${d.currency ? ' · ' + d.currency : ''}${d.price ? ' · ' + fmtPrice(d.price, d.currency) : ''}${d.ter != null ? ' · <span style="color:var(--amber)">TER ' + d.ter.toFixed(2) + '%</span>' : ''}</div>
       ${d.sector ? `<div class="sr-meta">${d.sector}${d.industry ? ' · ' + d.industry : ''}</div>` : ''}
       ${d.fundFamily ? `<div class="sr-meta">${d.fundFamily}</div>` : ''}
       ${mismatchWarn}
@@ -252,6 +270,8 @@ function updateTotal() {
     totalPctEl.className = 'total-pct ' + (Math.abs(tot - 100) < 0.5 ? 'total-ok' : 'total-warn');
   }
   analyzeBtn.disabled = portfolio.length === 0;
+  const _sbg = document.getElementById('saveBtnGroup');
+  if (_sbg) _sbg.style.display = portfolio.length > 0 ? 'inline-flex' : 'none';
 }
 
 liquiditaInp.addEventListener('input', updateTotal);
@@ -267,13 +287,19 @@ analyzeBtn.addEventListener('click', async () => {
 
   const body = {
     holdings: portfolio.map(h => ({
-      isin: h.isin || '',
-      name: h.name,
-      ticker: h.ticker,
-      category: h.category,
-      allocation: parseFloat(h.allocation) || 0,
-      geography: h.geography || null,
-      currency: h.currency || null,
+      isin:           h.isin || '',
+      name:           h.name,
+      ticker:         h.ticker,
+      yf_ticker:      h.yf_ticker || null,
+      category:       h.category,
+      allocation:     parseFloat(h.allocation) || 0,
+      geography:      h.geography || null,
+      currency:       h.currency || null,
+      ter:            h.ter ?? null,
+      amount:         h.amount ?? null,
+      quantity:       h.quantity ?? null,
+      purchase_price: h.purchase_price ?? null,
+      purchase_date:  h.purchase_date ?? null,
     })),
     liquidita: liquiditaPct,
   };
@@ -282,7 +308,7 @@ analyzeBtn.addEventListener('click', async () => {
   analyzeBtn.textContent = '⏳ Analisi…';
 
   try {
-    const res = await fetch(`${API}/api/portfolio/analyze`, {
+    const res = await apiFetch(`${API}/api/portfolio/analyze`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -292,6 +318,7 @@ analyzeBtn.addEventListener('click', async () => {
     renderDashboard(data, body.holdings, liquiditaPct);
     dashboard.classList.remove('hidden');
     dashboard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    fetchPerformance(body.holdings, liqVal);
   } catch (e) {
     alert('Errore: ' + e.message);
   } finally {
@@ -302,22 +329,23 @@ analyzeBtn.addEventListener('click', async () => {
 
 // ── Demo ────────────────────────────────────
 demoBtn.addEventListener('click', () => {
-  inputMode = 'pct';
-  modeToggleBtn.textContent = `${baseCurrency} Inserisci importi`;
-  modeToggleBtn.classList.remove('mode-amount-active');
-  allocHeader.textContent = 'Allocazione %';
-  liquiditaLbl.textContent = '💰 Liquidità (investibile)';
+  inputMode = 'amount';
+  modeToggleBtn.textContent = '% Inserisci percentuali';
+  modeToggleBtn.classList.add('mode-amount-active');
+  allocHeader.textContent = `Importo (${baseCurrency})`;
+  liquiditaLbl.textContent = `💰 Liquidità (${baseCurrency})`;
+  liquiditaInp.value = 250;
 
   portfolio = [
-    { isin: '', ticker: 'MSFT', name: 'Microsoft Corp.', category: 'Azioni', allocation: 11.4, amount: null, geography: {'Nord America': 100}, currency: 'USD' },
-    { isin: '', ticker: 'VST',  name: 'Vistra Corp.', category: 'Azioni', allocation: 10.1, amount: null, geography: {'Nord America': 100}, currency: 'USD' },
-    { isin: '', ticker: 'ZETA', name: 'Zeta Global', category: 'Azioni', allocation: 9.6, amount: null, geography: {'Nord America': 100}, currency: 'USD' },
-    { isin: '', ticker: 'UNH',  name: 'UnitedHealth Group', category: 'Azioni', allocation: 12.4, amount: null, geography: {'Nord America': 100}, currency: 'USD' },
-    { isin: '', ticker: 'ETH-USD', name: 'Ethereum', category: 'Criptovalute', allocation: 8.9, amount: null, geography: {'Globale': 100}, currency: 'USD' },
-    { isin: 'IE00BKM4GZ66', ticker: 'IWVL', name: 'iShares Edge MSCI World Value Factor UCITS ETF', category: 'ETF Azionario', allocation: 12.8, amount: null, geography: {'Nord America': 68, 'Europa': 20, 'Asia-Pacifico': 9, 'Altre': 3}, currency: 'USD' },
-    { isin: 'IE00B3RBWM25', ticker: 'SWRD', name: 'iShares Core MSCI World UCITS ETF', category: 'ETF Azionario', allocation: 21.5, amount: null, geography: {'Nord America': 68, 'Europa': 20, 'Asia-Pacifico': 9, 'Altre': 3}, currency: 'USD' },
-    { isin: '', ticker: 'V',   name: 'Visa Inc.', category: 'Azioni', allocation: 4.6, amount: null, geography: {'Nord America': 100}, currency: 'USD' },
-    { isin: '', ticker: 'NVO', name: 'Novo Nordisk', category: 'Azioni', allocation: 8.2, amount: null, geography: {'Europa': 100}, currency: 'DKK' },
+    { isin: '', ticker: 'MSFT',    yf_ticker: 'MSFT',    name: 'Microsoft Corp.',                                    category: 'Azioni',        allocation: 0, amount: 5700,  geography: {'Nord America': 100},                                              currency: 'USD' },
+    { isin: '', ticker: 'VST',     yf_ticker: 'VST',     name: 'Vistra Corp.',                                       category: 'Azioni',        allocation: 0, amount: 5050,  geography: {'Nord America': 100},                                              currency: 'USD' },
+    { isin: '', ticker: 'ZETA',    yf_ticker: 'ZETA',    name: 'Zeta Global',                                        category: 'Azioni',        allocation: 0, amount: 4800,  geography: {'Nord America': 100},                                              currency: 'USD' },
+    { isin: '', ticker: 'UNH',     yf_ticker: 'UNH',     name: 'UnitedHealth Group',                                 category: 'Azioni',        allocation: 0, amount: 6200,  geography: {'Nord America': 100},                                              currency: 'USD' },
+    { isin: '', ticker: 'ETH-USD', yf_ticker: 'ETH-USD', name: 'Ethereum',                                           category: 'Criptovalute',  allocation: 0, amount: 4450,  geography: {'Globale': 100},                                                   currency: 'USD' },
+    { isin: 'IE00BKM4GZ66', ticker: 'IWVL', yf_ticker: 'IWVL.L', name: 'iShares MSCI World Value Factor UCITS ETF', category: 'ETF Azionario', allocation: 0, amount: 6400,  geography: {'Nord America': 68, 'Europa': 20, 'Asia-Pacifico': 9, 'Altre': 3}, currency: 'USD', ter: 0.30 },
+    { isin: 'IE00B3RBWM25', ticker: 'SWRD', yf_ticker: 'SWRD.L', name: 'iShares Core MSCI World UCITS ETF',         category: 'ETF Azionario', allocation: 0, amount: 10750, geography: {'Nord America': 68, 'Europa': 20, 'Asia-Pacifico': 9, 'Altre': 3}, currency: 'USD', ter: 0.20 },
+    { isin: '', ticker: 'V',       yf_ticker: 'V',       name: 'Visa Inc.',                                          category: 'Azioni',        allocation: 0, amount: 2300,  geography: {'Nord America': 100},                                              currency: 'USD' },
+    { isin: '', ticker: 'NVO',     yf_ticker: 'NVO',     name: 'Novo Nordisk',                                       category: 'Azioni',        allocation: 0, amount: 4100,  geography: {'Europa': 100},                                                    currency: 'DKK' },
   ];
   renderTable();
   updateTotal();
@@ -467,11 +495,21 @@ function renderClassExposure(catPct) {
   }).join('');
 }
 
+let perfChart = null;
+
 function renderMetriche(m) {
   const profiloEmoji = {
     'Conservativo': '🟢', 'Moderato': '🟡',
     'Moderatamente Aggressivo': '🟠', 'Aggressivo': '🔴',
   };
+  const terVal   = m.ter_medio != null ? `${m.ter_medio.toFixed(2)}%/anno` : 'N/D';
+  const terColor = m.ter_medio != null ? 'var(--amber)' : 'var(--muted)';
+  const terBox   = `
+    <div class="metrica-box">
+      <div class="metrica-icon">💸</div>
+      <div class="metrica-label">TER Medio ponderato</div>
+      <div class="metrica-val" style="color:${terColor}">${terVal}</div>
+    </div>`;
   document.getElementById('metriche').innerHTML = `
     <div class="metrica-box">
       <div class="metrica-icon">📈</div>
@@ -488,11 +526,107 @@ function renderMetriche(m) {
       <div class="metrica-label">Sharpe Ratio atteso</div>
       <div class="metrica-val" style="color:var(--blue)">${m.sharpe}</div>
     </div>
+    ${terBox}
     <div class="profilo-box">
       <div class="profilo-emoji">${profiloEmoji[m.aggressiveness] || '⚪'}</div>
       <div class="profilo-label" style="color:var(--amber)">Profilo: ${m.aggressiveness}</div>
     </div>
   `;
+}
+
+async function fetchPerformance(holdings, liquidita) {
+  const perfCard = document.getElementById('perfCard');
+
+  const perfHoldings = holdings.filter(h => h.yf_ticker).map(h => {
+    let amt = null;
+    if (h.amount > 0) amt = h.amount;
+    else if (h.quantity > 0 && h.purchase_price > 0) amt = h.quantity * h.purchase_price;
+    return amt ? { yf_ticker: h.yf_ticker, amount: amt } : null;
+  }).filter(Boolean);
+
+  if (!perfHoldings.length) {
+    perfCard.classList.remove('hidden');
+    document.getElementById('perfReturn').textContent = '';
+    document.getElementById('perfSummary').innerHTML =
+      '<span style="color:var(--muted);font-size:13px">Aggiungi importi EUR (o quantità × prezzo) alle posizioni per vedere l\'andamento storico.</span>';
+    const canvas = document.getElementById('perfChart');
+    canvas.style.display = 'none';
+    return;
+  }
+
+  const canvas = document.getElementById('perfChart');
+  canvas.style.display = '';
+  perfCard.classList.remove('hidden');
+  document.getElementById('perfReturn').textContent = '⏳';
+
+  try {
+    const res  = await apiFetch(`${API}/api/portfolio/performance`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ holdings: perfHoldings, liquidita }),
+    });
+    if (!res.ok) throw new Error();
+    const data = await res.json();
+    if (!data.dates.length) {
+      document.getElementById('perfReturn').textContent = '';
+      document.getElementById('perfSummary').innerHTML =
+        '<span style="color:var(--muted);font-size:13px">Nessun dato storico disponibile per questi strumenti.</span>';
+      canvas.style.display = 'none';
+      return;
+    }
+    renderPerformanceChart(data);
+  } catch {
+    document.getElementById('perfReturn').textContent = '';
+    document.getElementById('perfSummary').innerHTML =
+      '<span style="color:var(--red);font-size:13px">Errore nel caricamento dei dati storici.</span>';
+    canvas.style.display = 'none';
+  }
+}
+
+function renderPerformanceChart(data) {
+  const isPos   = data.return_pct >= 0;
+  const color   = isPos ? '#22d3a0' : '#f43f5e';
+  const sign    = isPos ? '+' : '';
+  const retEl   = document.getElementById('perfReturn');
+  retEl.textContent = `${sign}${data.return_pct.toFixed(2)}%`;
+  retEl.style.color = color;
+
+  document.getElementById('perfSummary').innerHTML = `
+    <span>Valore iniziale: <strong style="color:var(--text)">€${fmtAmt(data.initial_value)}</strong></span>
+    <span>Valore attuale: <strong style="color:${color}">€${fmtAmt(data.current_value)}</strong></span>
+    <span style="color:var(--muted);font-size:11px">Basato su prezzi Yahoo Finance — ultimi 12 mesi</span>
+  `;
+
+  if (perfChart) perfChart.destroy();
+  const ctx = document.getElementById('perfChart').getContext('2d');
+  perfChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: data.dates,
+      datasets: [{
+        data: data.values,
+        borderColor: color,
+        backgroundColor: color + '18',
+        borderWidth: 2,
+        pointRadius: 0,
+        fill: true,
+        tension: 0.3,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: {
+        callbacks: { label: ctx => ` €${fmtAmt(ctx.parsed.y)}` },
+      }},
+      scales: {
+        x: { ticks: { maxTicksLimit: 8, color: '#7880a0', font: { size: 11 } }, grid: { color: '#1e2238' } },
+        y: { ticks: { color: '#7880a0', font: { size: 11 },
+               callback: v => '€' + fmtAmt(v) },
+             grid: { color: '#1e2238' } },
+      },
+    },
+  });
 }
 
 function renderCurrencyRisk(currencyExp) {
@@ -552,10 +686,6 @@ const importSelectedBtn = document.getElementById('importSelectedBtn');
 const importStatus     = document.getElementById('importStatus');
 const saveBtn          = document.getElementById('saveBtn');
 const loadBtn          = document.getElementById('loadBtn');
-const restoreBanner    = document.getElementById('restoreBanner');
-const restoreBannerText = document.getElementById('restoreBannerText');
-const restoreBtn       = document.getElementById('restoreBtn');
-const dismissRestoreBtn = document.getElementById('dismissRestoreBtn');
 const toastContainer   = document.getElementById('toastContainer');
 
 // ── Toggle upload panel ──────────────────────
@@ -617,7 +747,7 @@ extractBtn.addEventListener('click', async () => {
   uploadedDocs.forEach(f => form.append('files', f));
 
   try {
-    const res = await fetch(`${API}/api/extract-from-documents`, { method: 'POST', body: form });
+    const res = await apiFetch(`${API}/api/extract-from-documents`, { method: 'POST', body: form });
     if (!res.ok) {
       const err = await res.json();
       throw new Error(err.detail || 'Errore estrazione');
@@ -695,7 +825,7 @@ importSelectedBtn.addEventListener('click', async () => {
     const q = item.isin || item.ticker;
     if (!q) { fail++; continue; }
     try {
-      const res = await fetch(`${API}/api/search?q=${encodeURIComponent(q)}`);
+      const res = await apiFetch(`${API}/api/search?q=${encodeURIComponent(q)}`);
       if (!res.ok) throw new Error();
       const d = await res.json();
       const h = { ...d };
@@ -720,94 +850,131 @@ importSelectedBtn.addEventListener('click', async () => {
   showToast(`Importati ${ok} strumenti${fail ? `, ${fail} non trovati` : ''}.`, ok > 0 ? 'success' : 'error');
 
   if (ok > 0) {
-    saveBtn.style.display = 'inline-flex';
     docImportBody.classList.add('hidden');
     docToggleArrow.textContent = '▼';
   }
 });
 
 // ════════════════════════════════════════════
-// SAVE / LOAD PORTFOLIO
+// SAVE / LOAD PORTFOLIO (DynamoDB)
 // ════════════════════════════════════════════
+
+const saveBtnGroup       = document.getElementById('saveBtnGroup');
+const portfolioNameInput = document.getElementById('portfolioNameInput');
+const portfolioListModal = document.getElementById('portfolioListModal');
+const portfolioListClose = document.getElementById('portfolioListClose');
+const portfolioListItems = document.getElementById('portfolioListItems');
 
 saveBtn.addEventListener('click', savePortfolio);
 
 async function savePortfolio() {
+  const name   = portfolioNameInput.value.trim() || 'Il mio portafoglio';
   const liqVal = parseFloat(liquiditaInp.value || 0);
   const payload = {
-    holdings: portfolio,
+    name,
+    holdings:  portfolio,
     liquidita: liqVal,
     inputMode,
-    savedAt: new Date().toISOString(),
+    savedAt:   new Date().toISOString(),
   };
   try {
-    const res = await fetch(`${API}/api/portfolio/save`, {
-      method: 'POST',
+    const res = await apiFetch(`${API}/api/portfolio/save`, {
+      method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body:    JSON.stringify(payload),
     });
     if (!res.ok) throw new Error();
-    showToast('Portafoglio salvato.', 'success');
+    showToast(`"${name}" salvato.`, 'success');
   } catch {
     showToast('Errore nel salvataggio.', 'error');
   }
 }
 
-loadBtn.addEventListener('click', async () => {
-  const data = await fetchSavedPortfolio();
-  if (!data || !data.holdings?.length) {
-    showToast('Nessun portafoglio salvato trovato.', 'error');
-    return;
-  }
-  applyLoadedPortfolio(data);
-  showToast('Portafoglio ripristinato.', 'success');
+loadBtn.addEventListener('click', openPortfolioList);
+portfolioListClose.addEventListener('click', () => portfolioListModal.classList.add('hidden'));
+portfolioListModal.addEventListener('click', e => {
+  if (e.target === portfolioListModal) portfolioListModal.classList.add('hidden');
 });
 
-restoreBtn.addEventListener('click', async () => {
-  const data = await fetchSavedPortfolio();
-  if (data) applyLoadedPortfolio(data);
-  restoreBanner.classList.add('hidden');
-  showToast('Portafoglio ripristinato.', 'success');
-});
-
-dismissRestoreBtn.addEventListener('click', () => restoreBanner.classList.add('hidden'));
-
-async function fetchSavedPortfolio() {
+async function openPortfolioList() {
+  portfolioListModal.classList.remove('hidden');
+  portfolioListItems.innerHTML = '<p style="color:var(--muted);font-size:13px">Caricamento…</p>';
   try {
-    const res = await fetch(`${API}/api/portfolio/load`);
-    if (!res.ok) return null;
-    return await res.json();
-  } catch { return null; }
+    const res   = await apiFetch(`${API}/api/portfolio/list`);
+    const items = await res.json();
+    if (!items.length) {
+      portfolioListItems.innerHTML = '<p style="color:var(--muted);font-size:13px">Nessun portafoglio salvato.</p>';
+      return;
+    }
+    portfolioListItems.innerHTML = items.map(p => {
+      const d = new Date(p.savedAt);
+      const dateStr = isNaN(d) ? '' : d.toLocaleDateString('it-IT', { day:'2-digit', month:'short', year:'numeric' });
+      return `
+        <div style="display:flex;align-items:center;justify-content:space-between;
+                    padding:10px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px">
+          <div>
+            <div style="font-weight:600;font-size:14px">${p.name}</div>
+            <div style="font-size:12px;color:var(--muted)">${dateStr} · ${p.holdings_count} strumenti</div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button onclick="loadPortfolio('${p.portfolio_id}')"
+              style="background:var(--accent);border:none;border-radius:6px;padding:5px 12px;
+                     color:#fff;font-size:12px;cursor:pointer">Carica</button>
+            <button onclick="deletePortfolio('${p.portfolio_id}', this)"
+              style="background:transparent;border:1px solid var(--red);border-radius:6px;padding:5px 12px;
+                     color:var(--red);font-size:12px;cursor:pointer">Elimina</button>
+          </div>
+        </div>`;
+    }).join('');
+  } catch {
+    portfolioListItems.innerHTML = '<p style="color:var(--red);font-size:13px">Errore nel caricamento.</p>';
+  }
 }
 
-async function checkSavedPortfolio() {
-  const data = await fetchSavedPortfolio();
-  if (!data || !data.holdings?.length) return;
-  const d = new Date(data.savedAt);
-  const dateStr = isNaN(d) ? '' : ` (${d.toLocaleDateString('it-IT')})`;
-  restoreBannerText.textContent = `Portafoglio salvato trovato${dateStr} — ${data.holdings.length} strumenti.`;
-  restoreBanner.classList.remove('hidden');
+async function loadPortfolio(portfolioId) {
+  try {
+    const res  = await apiFetch(`${API}/api/portfolio/load/${portfolioId}`);
+    if (!res.ok) throw new Error();
+    const data = await res.json();
+    applyLoadedPortfolio(data);
+    portfolioListModal.classList.add('hidden');
+    showToast(`"${data.name || 'Portafoglio'}" ripristinato.`, 'success');
+  } catch {
+    showToast('Errore nel caricamento.', 'error');
+  }
+}
+
+async function deletePortfolio(portfolioId, btn) {
+  btn.disabled = true;
+  try {
+    await apiFetch(`${API}/api/portfolio/saved/${portfolioId}`, { method: 'DELETE' });
+    btn.closest('div[style]').remove();
+    if (!portfolioListItems.children.length) {
+      portfolioListItems.innerHTML = '<p style="color:var(--muted);font-size:13px">Nessun portafoglio salvato.</p>';
+    }
+  } catch {
+    btn.disabled = false;
+    showToast('Errore nella eliminazione.', 'error');
+  }
 }
 
 function applyLoadedPortfolio(data) {
   portfolio = data.holdings || [];
-  const liq = data.liquidita ?? 0;
-  liquiditaInp.value = liq;
-
-  const mode = data.inputMode || 'pct';
-  if (mode !== inputMode) modeToggleBtn.click();
-
+  liquiditaInp.value = data.liquidita ?? 0;
+  if ((data.inputMode || 'pct') !== inputMode) modeToggleBtn.click();
+  if (data.name && portfolioNameInput) portfolioNameInput.value = data.name;
   renderTable();
   updateTotal();
-  saveBtn.style.display = portfolio.length ? 'inline-flex' : 'none';
-  restoreBanner.classList.add('hidden');
 }
 
-// ── keep save button in sync with portfolio state ──
-// analyzeBtn.disabled mirrors portfolio.length === 0, so observe it
-new MutationObserver(() => {
-  if (saveBtn) saveBtn.style.display = !analyzeBtn.disabled ? 'inline-flex' : 'none';
-}).observe(analyzeBtn, { attributes: true, attributeFilter: ['disabled'] });
+async function checkSavedPortfolio() {
+  // On startup, show load button badge if portfolios exist
+  try {
+    const res   = await apiFetch(`${API}/api/portfolio/list`);
+    const items = await res.json();
+    if (items.length) loadBtn.textContent = `📂 Carica salvato (${items.length})`;
+  } catch { /* silently ignore */ }
+}
 
 // ── Toast helper ─────────────────────────────
 function showToast(msg, type = '') {
