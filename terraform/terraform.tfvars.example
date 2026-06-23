@@ -1,0 +1,20 @@
+# Copy this file to terraform.tfvars and fill in the values.
+# terraform.tfvars is listed in .gitignore — never commit it (contains secrets).
+
+aws_region = "eu-central-1"
+app_name   = "portfoliolab"
+environment = "prod"
+
+# Anthropic API key (from https://console.anthropic.com)
+anthropic_api_key = "sk-ant-..."
+
+# JWT secret — generate with: python -c "import secrets; print(secrets.token_hex(32))"
+jwt_secret_key = "change-me-to-a-long-random-string"
+
+# Lambda sizing (defaults are fine for most cases)
+# lambda_memory_mb        = 1024
+# lambda_timeout_seconds  = 30
+
+# Set this AFTER the first deploy — get the value from `terraform output cloudfront_url`
+# then re-run `make tf-apply` so password-reset emails contain the correct link.
+# app_url = "https://xxxxxxxxxxxxxx.cloudfront.net"

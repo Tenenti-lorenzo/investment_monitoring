@@ -68,6 +68,7 @@ const CUR_FLAGS = {
 
 // ── State ──────────────────────────────────
 let portfolio = [];   // { isin, ticker, yf_ticker, name, category, allocation, amount, geography, currency }
+let pac = [];         // PAC entries
 let lastSearchData = null;
 let allocationChart = null;
 let geoChart = null;
@@ -156,17 +157,28 @@ function renderSearchResult(d) {
         value="${isPct ? '10' : '1000'}" />
       <span>${isPct ? '%' : baseCurrency}</span>
     </div>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:6px">
+      <input type="number" id="srQtyInput" min="0" step="0.001" placeholder="Quantità (n. titoli)"
+        style="width:140px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text);font-size:12px;font-family:inherit" />
+      <input type="number" id="srBuyPriceInput" min="0" step="0.01" placeholder="Prezzo acquisto (${d.currency || baseCurrency})"
+        style="width:160px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text);font-size:12px;font-family:inherit" />
+      <span style="font-size:11px;color:var(--muted)">opzionali – per tracking performance</span>
+    </div>
     <button class="btn btn-primary sr-add-btn" id="srAddBtn">+ Aggiungi</button>
   `;
   document.getElementById('srAddBtn').addEventListener('click', () => {
     const val = parseFloat(document.getElementById('srAllocInput').value || 0);
-    if (val <= 0) { alert('Inserisci un valore > 0'); return; }
+    const qty = parseFloat(document.getElementById('srQtyInput').value || '') || null;
+    const buyPrice = parseFloat(document.getElementById('srBuyPriceInput').value || '') || null;
+    if (val <= 0 && !qty) { alert('Inserisci un valore > 0'); return; }
     const h = { ...lastSearchData };
+    if (qty !== null) h.quantity = qty;
+    if (buyPrice !== null) h.purchase_price = buyPrice;
     if (inputMode === 'pct') {
-      h.allocation = val;
-      h.amount = null;
+      h.allocation = val || 0;
+      h.amount = qty && buyPrice ? qty * buyPrice : (h.amount ?? null);
     } else {
-      h.amount = val;
+      h.amount = val || (qty && buyPrice ? qty * buyPrice : 0);
       h.allocation = 0;
     }
     addHolding(h);
@@ -188,6 +200,8 @@ function addHolding(h) {
   if (existing) {
     if (inputMode === 'pct') existing.allocation = h.allocation;
     else existing.amount = h.amount;
+    if (h.quantity != null) existing.quantity = h.quantity;
+    if (h.purchase_price != null) existing.purchase_price = h.purchase_price;
     renderTable();
     updateTotal();
     return;
@@ -195,6 +209,7 @@ function addHolding(h) {
   portfolio.push({ ...h, amount: h.amount ?? null });
   renderTable();
   updateTotal();
+  renderPac();
 }
 
 function renderTable() {
@@ -210,11 +225,15 @@ function renderTable() {
     const calcPct = !isPct
       ? `<span class="holding-calc-pct">${(h.allocation || 0).toFixed(1)}%</span>`
       : '';
+    const qtyInfo = h.quantity
+      ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">× ${h.quantity}${h.purchase_price ? ' · pmc ' + fmtPrice(h.purchase_price, h.currency) : ''}</div>`
+      : '';
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>
         <div class="holding-name">${h.name}</div>
         <div class="holding-ticker">${h.ticker}${h.isin ? ' · ' + h.isin : ''}${h.currency ? ' <span class="cur-tag">' + h.currency + '</span>' : ''}</div>
+        ${qtyInfo}
       </td>
       <td><span class="cat-badge" style="background:${color}22;color:${color};border:1px solid ${color}44">${h.category}</span></td>
       <td>
@@ -272,6 +291,10 @@ function updateTotal() {
   analyzeBtn.disabled = portfolio.length === 0;
   const _sbg = document.getElementById('saveBtnGroup');
   if (_sbg) _sbg.style.display = portfolio.length > 0 ? 'inline-flex' : 'none';
+
+  // Show PAC section when portfolio has items
+  const pacSection = document.getElementById('pacSection');
+  if (pacSection) pacSection.style.display = portfolio.length > 0 ? 'block' : 'none';
 }
 
 liquiditaInp.addEventListener('input', updateTotal);
@@ -354,10 +377,13 @@ demoBtn.addEventListener('click', () => {
 
 clearBtn.addEventListener('click', () => {
   portfolio = [];
+  pac = [];
   renderTable();
   updateTotal();
+  renderPac();
   dashboard.classList.add('hidden');
   searchResult.className = 'search-result hidden';
+  document.getElementById('plBanner').style.display = 'none';
 });
 
 // ── Render Dashboard ────────────────────────
@@ -872,10 +898,11 @@ async function savePortfolio() {
   const liqVal = parseFloat(liquiditaInp.value || 0);
   const payload = {
     name,
-    holdings:  portfolio,
-    liquidita: liqVal,
+    holdings:    portfolio,
+    liquidita:   liqVal,
     inputMode,
-    savedAt:   new Date().toISOString(),
+    pac_entries: pac,
+    savedAt:     new Date().toISOString(),
   };
   try {
     const res = await apiFetch(`${API}/api/portfolio/save`, {
@@ -960,11 +987,21 @@ async function deletePortfolio(portfolioId, btn) {
 
 function applyLoadedPortfolio(data) {
   portfolio = data.holdings || [];
+  pac = data.pac_entries || [];
   liquiditaInp.value = data.liquidita ?? 0;
   if ((data.inputMode || 'pct') !== inputMode) modeToggleBtn.click();
   if (data.name && portfolioNameInput) portfolioNameInput.value = data.name;
   renderTable();
   updateTotal();
+  renderPac();
+
+  // Show P&L banner if any holding has quantity saved
+  const plBanner = document.getElementById('plBanner');
+  const plResult = document.getElementById('plResult');
+  const hasQty = portfolio.some(h => h.quantity > 0);
+  plBanner.style.display = hasQty ? 'block' : 'none';
+  plResult.style.display = 'none';
+  plResult.innerHTML = '';
 }
 
 async function checkSavedPortfolio() {
@@ -984,3 +1021,197 @@ function showToast(msg, type = '') {
   toastContainer.appendChild(el);
   setTimeout(() => el.remove(), 3500);
 }
+
+// ════════════════════════════════════════════
+// PERFORMANCE / P&L
+// ════════════════════════════════════════════
+
+document.getElementById('valuateBtn').addEventListener('click', fetchPortfolioPerformance);
+
+async function fetchPortfolioPerformance() {
+  const btn = document.getElementById('valuateBtn');
+  const plResult = document.getElementById('plResult');
+  btn.disabled = true;
+  btn.textContent = '⏳ Caricamento…';
+  plResult.style.display = 'none';
+  try {
+    const holdings = portfolio.filter(h => h.quantity > 0 && (h.yf_ticker || h.ticker));
+    const res = await apiFetch(`${API}/api/portfolio/pl`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ holdings }),
+    });
+    if (!res.ok) throw new Error();
+    const data = await res.json();
+    renderPLResult(data);
+  } catch {
+    showToast('Errore nel recupero dei prezzi.', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Aggiorna prezzi';
+  }
+}
+
+function renderPLResult(data) {
+  const plResult = document.getElementById('plResult');
+  const fmtEur = v => v != null ? (v >= 0 ? '+' : '') + v.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €' : 'N/D';
+  const fmtPct = v => v != null ? (v >= 0 ? '+' : '') + v.toFixed(2) + '%' : '';
+  const clr = v => v == null ? '' : v >= 0 ? 'var(--green)' : 'var(--red)';
+
+  const rows = data.holdings.map(h => `
+    <tr>
+      <td style="padding:6px 8px;font-size:13px">${h.name || h.ticker}</td>
+      <td style="padding:6px 8px;font-size:12px;color:var(--muted);text-align:right">× ${h.quantity}</td>
+      <td style="padding:6px 8px;font-size:12px;color:var(--muted);text-align:right">${h.purchase_price != null ? fmtPrice(h.purchase_price, '') : '—'}</td>
+      <td style="padding:6px 8px;font-size:13px;text-align:right">${fmtPrice(h.current_price, '')}</td>
+      <td style="padding:6px 8px;font-size:13px;font-weight:600;text-align:right">${h.current_value.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</td>
+      <td style="padding:6px 8px;font-size:13px;font-weight:600;color:${clr(h.pl_eur)};text-align:right">${fmtEur(h.pl_eur)} ${fmtPct(h.pl_pct)}</td>
+    </tr>
+  `).join('');
+
+  const totalPl = data.total_pl_eur;
+  const totalPct = data.total_pl_pct;
+
+  plResult.style.display = 'block';
+  plResult.innerHTML = `
+    <div style="margin-bottom:10px;display:flex;gap:20px;flex-wrap:wrap">
+      <div style="font-size:13px;color:var(--muted)">Valore attuale: <strong style="color:var(--text)">${(data.total_value || 0).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</strong></div>
+      ${data.total_cost ? `<div style="font-size:13px;color:var(--muted)">Costo: <strong style="color:var(--text)">${data.total_cost.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</strong></div>` : ''}
+      ${totalPl != null ? `<div style="font-size:14px;font-weight:700;color:${clr(totalPl)}">P&L: ${fmtEur(totalPl)} ${fmtPct(totalPct)}</div>` : ''}
+    </div>
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-family:inherit">
+        <thead>
+          <tr style="border-bottom:1px solid var(--border)">
+            <th style="padding:6px 8px;text-align:left;font-size:11px;color:var(--muted);font-weight:600">Strumento</th>
+            <th style="padding:6px 8px;text-align:right;font-size:11px;color:var(--muted);font-weight:600">Quantità</th>
+            <th style="padding:6px 8px;text-align:right;font-size:11px;color:var(--muted);font-weight:600">Pmc</th>
+            <th style="padding:6px 8px;text-align:right;font-size:11px;color:var(--muted);font-weight:600">Prezzo att.</th>
+            <th style="padding:6px 8px;text-align:right;font-size:11px;color:var(--muted);font-weight:600">Valore att.</th>
+            <th style="padding:6px 8px;text-align:right;font-size:11px;color:var(--muted);font-weight:600">P&L</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    <p style="font-size:11px;color:var(--muted);margin-top:8px">Prezzi in tempo reale da Yahoo Finance. Se la valuta differisce dall'EUR il confronto è approssimativo.</p>
+  `;
+}
+
+// ════════════════════════════════════════════
+// PAC – PIANO DI ACCUMULO
+// ════════════════════════════════════════════
+
+const PAC_FREQ_LABELS = { monthly: 'Mensile', biweekly: 'Bisettimanale', weekly: 'Settimanale', quarterly: 'Trimestrale' };
+
+function pacNextDate(startDate, frequency) {
+  const d = new Date(startDate);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  // Advance until next date >= today
+  let next = new Date(d);
+  while (next < today) {
+    if (frequency === 'weekly')     next.setDate(next.getDate() + 7);
+    else if (frequency === 'biweekly') next.setDate(next.getDate() + 14);
+    else if (frequency === 'monthly')  next.setMonth(next.getMonth() + 1);
+    else if (frequency === 'quarterly') next.setMonth(next.getMonth() + 3);
+    else break;
+  }
+  return next.toISOString().split('T')[0];
+}
+
+function renderPac() {
+  const section = document.getElementById('pacSection');
+  const list = document.getElementById('pacList');
+
+  if (pac.length === 0 && portfolio.length === 0) {
+    section.style.display = 'none';
+    return;
+  }
+  section.style.display = portfolio.length > 0 ? 'block' : 'none';
+
+  if (pac.length === 0) {
+    list.innerHTML = '<p style="font-size:13px;color:var(--muted);margin:0">Nessuna rata configurata. Clicca "+ Aggiungi rata" per iniziare.</p>';
+    return;
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  list.innerHTML = pac.map((e, i) => {
+    const next = new Date(e.next_date);
+    const daysLeft = Math.round((next - today) / 86400000);
+    const dueLabel = daysLeft === 0 ? '<span style="color:var(--green);font-weight:700">Oggi!</span>'
+      : daysLeft < 0 ? `<span style="color:var(--red)">Scaduta ${-daysLeft}g fa</span>`
+      : daysLeft <= 7 ? `<span style="color:var(--amber)">Tra ${daysLeft} giorni</span>`
+      : `<span style="color:var(--muted)">${next.toLocaleDateString('it-IT', { day:'2-digit', month:'short', year:'numeric' })}</span>`;
+    return `
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;
+                  padding:10px 0;border-bottom:1px solid var(--border);flex-wrap:wrap">
+        <div>
+          <span style="font-size:14px;font-weight:600">${e.ticker}</span>
+          ${e.name ? `<span style="font-size:12px;color:var(--muted)"> · ${e.name}</span>` : ''}
+          <div style="font-size:12px;color:var(--muted);margin-top:2px">
+            ${e.amount_per_installment} €/rata · ${PAC_FREQ_LABELS[e.frequency] || e.frequency}
+          </div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:12px;color:var(--muted)">Prossima rata</div>
+          <div style="font-size:13px">${dueLabel}</div>
+        </div>
+        <button onclick="removePacEntry(${i})"
+          style="background:transparent;border:1px solid var(--red);border-radius:6px;padding:4px 10px;
+                 color:var(--red);font-size:12px;cursor:pointer">Elimina</button>
+      </div>
+    `;
+  }).join('');
+}
+
+function removePacEntry(idx) {
+  pac.splice(idx, 1);
+  renderPac();
+}
+
+// PAC form handlers
+const addPacBtn    = document.getElementById('addPacBtn');
+const pacForm      = document.getElementById('pacForm');
+const pacCancelBtn = document.getElementById('pacCancelBtn');
+const pacSaveBtn   = document.getElementById('pacSaveBtn');
+const pacFormError = document.getElementById('pacFormError');
+
+// Set default date to today
+document.getElementById('pacStartDate').value = new Date().toISOString().split('T')[0];
+
+addPacBtn.addEventListener('click', () => {
+  pacForm.style.display = pacForm.style.display === 'none' ? 'block' : 'none';
+  pacFormError.style.display = 'none';
+});
+
+pacCancelBtn.addEventListener('click', () => {
+  pacForm.style.display = 'none';
+});
+
+pacSaveBtn.addEventListener('click', () => {
+  const ticker    = document.getElementById('pacTicker').value.trim().toUpperCase();
+  const name      = document.getElementById('pacName').value.trim();
+  const amount    = parseFloat(document.getElementById('pacAmount').value || 0);
+  const frequency = document.getElementById('pacFrequency').value;
+  const startDate = document.getElementById('pacStartDate').value;
+
+  pacFormError.style.display = 'none';
+  if (!ticker) { pacFormError.textContent = 'Inserisci il ticker o ISIN dello strumento.'; pacFormError.style.display = 'block'; return; }
+  if (amount <= 0) { pacFormError.textContent = 'L\'importo per rata deve essere maggiore di 0.'; pacFormError.style.display = 'block'; return; }
+  if (!startDate) { pacFormError.textContent = 'Seleziona una data di inizio.'; pacFormError.style.display = 'block'; return; }
+
+  const next_date = pacNextDate(startDate, frequency);
+  pac.push({ ticker, name, amount_per_installment: amount, frequency, start_date: startDate, next_date });
+
+  // Reset form
+  document.getElementById('pacTicker').value = '';
+  document.getElementById('pacName').value = '';
+  document.getElementById('pacAmount').value = '100';
+  document.getElementById('pacStartDate').value = new Date().toISOString().split('T')[0];
+  pacForm.style.display = 'none';
+  renderPac();
+  showToast(`Rata PAC aggiunta per ${ticker}.`, 'success');
+});

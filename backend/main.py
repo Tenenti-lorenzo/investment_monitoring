@@ -21,6 +21,19 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+def _load_aws_secrets() -> None:
+    """Fetch ANTHROPIC_API_KEY and SECRET_KEY from Secrets Manager when running in AWS."""
+    secret_arn = os.getenv("SECRETS_ARN")
+    if not secret_arn:
+        return
+    import boto3
+    client = boto3.client("secretsmanager", region_name=os.getenv("AWS_REGION", "eu-central-1"))
+    data = json.loads(client.get_secret_value(SecretId=secret_arn)["SecretString"])
+    for key, value in data.items():
+        os.environ.setdefault(key, value)
+
+_load_aws_secrets()
+
 import anthropic
 import pypdf
 import bcrypt as _bcrypt_lib
@@ -56,23 +69,22 @@ app.add_middleware(
 )
 
 frontend_path = Path(__file__).parent.parent / "frontend"
-app.mount("/static", StaticFiles(directory=str(frontend_path / "static")), name="static")
+if frontend_path.exists():
+    app.mount("/static", StaticFiles(directory=str(frontend_path / "static")), name="static")
 
+    @app.get("/")
+    def root():
+        return FileResponse(str(frontend_path / "index.html"))
 
-@app.get("/")
-def root():
-    return FileResponse(str(frontend_path / "index.html"))
-
-
-@app.get("/login")
-def login_page():
-    return FileResponse(str(frontend_path / "login.html"))
+    @app.get("/login")
+    def login_page():
+        return FileResponse(str(frontend_path / "login.html"))
 
 
 # ─── Auth helpers ────────────────────────────────────────────────────────────
 
 def _hash_pw(pw: str) -> str:
-    return _bcrypt_lib.hashpw(pw.encode()[:72], _bcrypt_lib.gensalt()).decode()
+    return _bcrypt_lib.hashpw(pw.encode()[:72], _bcrypt_lib.gensalt(rounds=10)).decode()
 
 def _verify_pw(plain: str, hashed: str) -> bool:
     return _bcrypt_lib.checkpw(plain.encode()[:72], hashed.encode())
@@ -672,7 +684,68 @@ class PortfolioSave(BaseModel):
     holdings: list
     liquidita: float = 0.0
     inputMode: str = "pct"
+    pac_entries: list = []
     savedAt: Optional[str] = None
+
+
+class PLRequest(BaseModel):
+    holdings: list  # {yf_ticker, ticker, name, quantity, purchase_price, currency}
+
+
+@app.post("/api/portfolio/pl")
+def get_portfolio_pl(req: PLRequest, _: str = Depends(get_current_user)):
+    results = []
+    to_fetch = [(h, h.get("yf_ticker") or h.get("ticker")) for h in req.holdings
+                if h.get("quantity") and (h.get("yf_ticker") or h.get("ticker"))]
+
+    def _fetch(h, yf_t):
+        try:
+            fi = yf.Ticker(yf_t).fast_info
+            price = getattr(fi, "last_price", None)
+            if price is None:
+                return None
+            qty = float(h["quantity"])
+            buy = float(h["purchase_price"]) if h.get("purchase_price") else None
+            cur_val = round(qty * price, 2)
+            cost = round(qty * buy, 2) if buy else None
+            pl_eur = round(cur_val - cost, 2) if cost is not None else None
+            pl_pct = round(pl_eur / cost * 100, 2) if cost else None
+            return {
+                "ticker": h.get("ticker", yf_t),
+                "name": h.get("name", ""),
+                "quantity": qty,
+                "purchase_price": round(buy, 4) if buy else None,
+                "current_price": round(price, 4),
+                "current_value": cur_val,
+                "cost_basis": cost,
+                "pl_eur": pl_eur,
+                "pl_pct": pl_pct,
+            }
+        except Exception:
+            return None
+
+    with ThreadPoolExecutor(max_workers=min(8, len(to_fetch) or 1)) as ex:
+        futures = {ex.submit(_fetch, h, yf_t): (h, yf_t) for h, yf_t in to_fetch}
+        try:
+            for fut in as_completed(futures, timeout=10.0):
+                r = fut.result()
+                if r:
+                    results.append(r)
+        except _FutTimeout:
+            pass
+
+    total_value = sum(r["current_value"] for r in results)
+    total_cost = sum(r["cost_basis"] for r in results if r.get("cost_basis") is not None)
+    total_pl = round(total_value - total_cost, 2) if total_cost else None
+    total_pl_pct = round(total_pl / total_cost * 100, 2) if total_cost else None
+
+    return {
+        "holdings": results,
+        "total_value": round(total_value, 2),
+        "total_cost": round(total_cost, 2) if total_cost else None,
+        "total_pl_eur": total_pl,
+        "total_pl_pct": total_pl_pct,
+    }
 
 
 @app.post("/api/portfolio/save")
@@ -745,3 +818,8 @@ def portfolio_performance(req: PerformanceRequest, _: str = Depends(get_current_
         "initial_value": round(initial, 2),
         "current_value": round(current, 2),
     }
+
+
+# AWS Lambda entry point via Mangum ASGI adapter
+from mangum import Mangum
+handler = Mangum(app, lifespan="off")

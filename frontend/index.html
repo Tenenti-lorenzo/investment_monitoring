@@ -252,6 +252,65 @@
           <button id="demoBtn" class="btn btn-ghost">Carica portafoglio demo</button>
           <button id="clearBtn" class="btn btn-ghost btn-danger">🗑 Svuota</button>
         </div>
+
+        <!-- ── PERFORMANCE (P&L) ── -->
+        <div id="plBanner" style="display:none;margin-top:16px;padding:14px 16px;background:var(--bg2);border:1px solid var(--border);border-radius:10px">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+            <span style="font-size:13px;color:var(--muted)">Portafoglio con quantità salvate — aggiorna i prezzi per vedere la performance attuale</span>
+            <button id="valuateBtn" class="btn btn-primary btn-sm" type="button">Valorizza portafoglio</button>
+          </div>
+          <div id="plResult" style="display:none;margin-top:14px"></div>
+        </div>
+
+        <!-- ── PAC – Piano di Accumulo ── -->
+        <div id="pacSection" style="display:none;margin-top:16px;border:1px solid var(--border);border-radius:10px;overflow:hidden">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--bg2);border-bottom:1px solid var(--border)">
+            <h3 style="margin:0;font-size:15px">📅 Piano di Accumulo (PAC)</h3>
+            <button id="addPacBtn" class="btn btn-ghost btn-sm" type="button">+ Aggiungi rata</button>
+          </div>
+          <div id="pacList" style="padding:12px 16px"></div>
+
+          <!-- Form aggiunta PAC (hidden di default) -->
+          <div id="pacForm" style="display:none;padding:12px 16px;border-top:1px solid var(--border);background:var(--bg2)">
+            <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end">
+              <div style="display:flex;flex-direction:column;gap:4px">
+                <label style="font-size:11px;color:var(--muted)">Ticker / ISIN</label>
+                <input id="pacTicker" type="text" placeholder="es. SWRD o IE00B3RBWM25"
+                  style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:13px;width:180px;font-family:inherit" />
+              </div>
+              <div style="display:flex;flex-direction:column;gap:4px">
+                <label style="font-size:11px;color:var(--muted)">Nome (opz.)</label>
+                <input id="pacName" type="text" placeholder="Nome strumento"
+                  style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:13px;width:160px;font-family:inherit" />
+              </div>
+              <div style="display:flex;flex-direction:column;gap:4px">
+                <label style="font-size:11px;color:var(--muted)">Importo per rata (EUR)</label>
+                <input id="pacAmount" type="number" min="1" step="10" value="100"
+                  style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:13px;width:120px;font-family:inherit" />
+              </div>
+              <div style="display:flex;flex-direction:column;gap:4px">
+                <label style="font-size:11px;color:var(--muted)">Frequenza</label>
+                <select id="pacFrequency"
+                  style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:13px;font-family:inherit">
+                  <option value="monthly">Mensile</option>
+                  <option value="biweekly">Bisettimanale</option>
+                  <option value="weekly">Settimanale</option>
+                  <option value="quarterly">Trimestrale</option>
+                </select>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:4px">
+                <label style="font-size:11px;color:var(--muted)">Data inizio</label>
+                <input id="pacStartDate" type="date"
+                  style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:13px;font-family:inherit" />
+              </div>
+              <div style="display:flex;gap:6px">
+                <button id="pacSaveBtn" class="btn btn-primary btn-sm" type="button">Salva rata</button>
+                <button id="pacCancelBtn" class="btn btn-ghost btn-sm" type="button">Annulla</button>
+              </div>
+            </div>
+            <p id="pacFormError" style="color:var(--red);font-size:12px;margin:6px 0 0;display:none"></p>
+          </div>
+        </div>
       </section>
 
       <!-- ── AD between form and dashboard ── -->
