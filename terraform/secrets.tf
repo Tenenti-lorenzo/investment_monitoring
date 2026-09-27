@@ -13,5 +13,6 @@ resource "aws_secretsmanager_secret_version" "app" {
   secret_string = jsonencode({
     ANTHROPIC_API_KEY = var.anthropic_api_key
     SECRET_KEY        = var.jwt_secret_key
+    FRED_API_KEY      = var.fred_api_key
   })
 }

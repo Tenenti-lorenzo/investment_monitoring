@@ -62,6 +62,9 @@
     .extract-item input[type=checkbox] { margin-top: 3px; flex-shrink: 0; accent-color: var(--primary, #6366f1); }
     .extract-item-name { font-size: 14px; font-weight: 600; }
     .extract-item-sub { font-size: 12px; color: var(--muted); margin-top: 3px; }
+    .extract-item-info { flex: 1; }
+    .extract-item-pmc { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; }
+    .pmc-input { width: 90px; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--border); background: var(--input-bg, #1a1f35); color: var(--text); font-size: 12px; text-align: right; }
     /* ── Restore banner ── */
     .restore-banner {
       background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px;
@@ -81,21 +84,28 @@
       to   { transform: translateX(0);    opacity: 1; }
     }
     .btn-sm { padding: 6px 12px !important; font-size: 12px !important; }
+    .period-btn {
+      background: var(--bg2, #1a1f35); border: 1px solid var(--border); border-radius: 6px;
+      padding: 4px 10px; color: var(--muted); font-size: 12px; cursor: pointer;
+      font-family: inherit; transition: all 0.15s;
+    }
+    .period-btn:hover { border-color: var(--primary, #6366f1); color: var(--text); }
+    .period-btn.active { background: var(--primary, #6366f1); border-color: var(--primary, #6366f1); color: #fff; }
   </style>
 </head>
 <body>
 
   <!-- ══════════ TOP AD BANNER (728×90 leaderboard) ══════════ -->
-  <div class="ad-banner-top">
-    <div class="ad-slot ad-leaderboard" data-ad-slot="top-leaderboard">
-      <span class="ad-label">Pubblicità</span>
+  <div class="promo-banner-top">
+    <div class="promo-slot promo-leaderboard" data-promo-slot="top-leaderboard">
+      <span class="promo-label">Pubblicità</span>
       <!-- Google AdSense: sostituisci con il tuo codice -->
       <!--
       <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-XXXXXXXXXXXXXXXX" crossorigin="anonymous"></script>
-      <ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-XXXXXXXXXXXXXXXX" data-ad-slot="XXXXXXXXXX" data-ad-format="auto" data-full-width-responsive="true"></ins>
+      <ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-XXXXXXXXXXXXXXXX" data-promo-slot="XXXXXXXXXX" data-ad-format="auto" data-full-width-responsive="true"></ins>
       <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
       -->
-      <div class="ad-placeholder">728 × 90 — Leaderboard</div>
+      <div class="promo-placeholder">728 × 90 — Leaderboard</div>
     </div>
   </div>
 
@@ -108,6 +118,8 @@
       </a>
       <div class="nav-links">
         <a href="#analizza">Analizza</a>
+        <a href="#superinvestitori">Superinvestitori</a>
+        <a href="/analisi" id="navDeepAnalysis">Analisi approfondita</a>
         <a href="#come-funziona">Come funziona</a>
         <a href="#faq">FAQ</a>
       </div>
@@ -232,8 +244,8 @@
         <div class="liquidity-row">
           <label id="liquiditaLabel">💰 Liquidità (investibile)</label>
           <div class="pct-input-wrap">
-            <input type="number" id="liquiditaInput" value="0" min="0" max="100" step="0.1" />
-            <span>%</span>
+            <input type="number" id="liquiditaInput" value="0" min="0" step="0.1" />
+            <span id="liquiditaUnit">%</span>
           </div>
           <span id="totalPct" class="total-pct">Totale: 0%</span>
         </div>
@@ -241,6 +253,7 @@
         <div class="action-row">
           <button id="analyzeBtn" class="btn btn-primary btn-lg" disabled>📊 Genera Dashboard</button>
           <button id="modeToggle" class="btn btn-ghost">EUR Inserisci importi</button>
+          <button id="deepAnalysisBtn" class="btn btn-ghost" type="button" disabled>🔬 Analisi approfondita</button>
           <span id="saveBtnGroup" style="display:none;align-items:center;gap:6px">
             <input id="portfolioNameInput" type="text" placeholder="Nome portafoglio…"
               style="background:var(--bg2);border:1px solid var(--border);border-radius:6px;
@@ -314,9 +327,9 @@
       </section>
 
       <!-- ── AD between form and dashboard ── -->
-      <div class="ad-slot ad-inline" data-ad-slot="mid-content">
-        <span class="ad-label">Pubblicità</span>
-        <div class="ad-placeholder">336 × 280 — Rectangle</div>
+      <div class="promo-slot promo-inline" data-promo-slot="mid-content">
+        <span class="promo-label">Pubblicità</span>
+        <div class="promo-placeholder">336 × 280 — Rectangle</div>
       </div>
 
       <!-- ── DASHBOARD ── -->
@@ -374,10 +387,18 @@
               <p class="geo-note" style="margin-top:8px">Basato sulla valuta di negoziazione di ciascuno strumento</p>
             </div>
 
+            <div class="card" style="margin-top:16px">
+              <div class="card-header">
+                <h3>Esposizione Valutaria <small>(valuta sottostanti)</small></h3>
+              </div>
+              <div id="underlyingCurrencyRisk" class="category-bars"></div>
+              <p class="geo-note" style="margin-top:8px">Per ETF calcolata dalla geografia dei sottostanti; per azioni/obbligazioni usa la valuta di quotazione</p>
+            </div>
+
             <!-- ── AD inside right column ── -->
-            <div class="ad-slot ad-square" style="margin-top:16px" data-ad-slot="mid-right">
-              <span class="ad-label">Pubblicità</span>
-              <div class="ad-placeholder">300 × 250 — Rectangle</div>
+            <div class="promo-slot promo-square" style="margin-top:16px" data-promo-slot="mid-right">
+              <span class="promo-label">Pubblicità</span>
+              <div class="promo-placeholder">300 × 250 — Rectangle</div>
             </div>
 
             <div class="card" style="margin-top:16px">
@@ -401,8 +422,15 @@
             <!-- Performance chart -->
             <div id="perfCard" class="card hidden" style="margin-top:16px">
               <div class="card-header" style="display:flex;align-items:center;justify-content:space-between">
-                <h3>Andamento Portafoglio — ultimi 12 mesi</h3>
+                <h3>Andamento Portafoglio</h3>
                 <div id="perfReturn" style="font-size:18px;font-weight:700"></div>
+              </div>
+              <div style="display:flex;gap:6px;margin-bottom:8px">
+                <button class="period-btn active" data-days="365">1A</button>
+                <button class="period-btn" data-days="180">6M</button>
+                <button class="period-btn" data-days="30">1M</button>
+                <button class="period-btn" data-days="7">1S</button>
+                <button class="period-btn" data-days="1">1G</button>
               </div>
               <div style="position:relative;height:260px;margin-top:8px">
                 <canvas id="perfChart"></canvas>
@@ -413,6 +441,34 @@
 
         </div>
 
+      </section>
+
+      <!-- ── RIEPILOGO FINALE ── -->
+      <div id="portfolioSummaryCard" class="card hidden" style="margin-top:16px">
+        <div class="card-header"><h3>📋 Riepilogo Portafoglio</h3></div>
+        <div id="portfolioSummary"></div>
+      </div>
+
+      <!-- ══════════ SUPERINVESTITORI (Dataroma) ══════════ -->
+      <section class="card" id="superinvestitori" style="margin-top:16px">
+        <div class="card-header">
+          <div>
+            <h2>🧠 Superinvestitori</h2>
+            <p>Portafogli dei grandi investitori value (Buffett, Ackman, Pabrai…) dai filing 13F trimestrali SEC · fonte <a href="https://www.dataroma.com/m/home.php" target="_blank" rel="noopener" style="color:var(--accent2)">Dataroma</a></p>
+          </div>
+        </div>
+        <div class="si-tabs" role="tablist">
+          <button class="si-tab active" data-si-tab="consensus" type="button">Più posseduti</button>
+          <button class="si-tab" data-si-tab="managers" type="button">Portafogli</button>
+          <button class="si-tab" data-si-tab="overlap" type="button">I tuoi titoli</button>
+        </div>
+        <div class="si-pane" id="siConsensus"></div>
+        <div class="si-pane hidden" id="siManagers">
+          <select id="siManagerSelect" class="si-select"><option value="">Caricamento gestori…</option></select>
+          <div id="siManagerPortfolio"></div>
+        </div>
+        <div class="si-pane hidden" id="siOverlap"></div>
+        <p class="si-note">Dati 13F: posizioni long in azioni USA, pubblicate fino a 45 giorni dopo la fine del trimestre. Non sono raccomandazioni d'investimento.</p>
       </section>
 
       <!-- ══════════ COME FUNZIONA ══════════ -->
@@ -472,9 +528,9 @@
 
       <!-- Sticky ad unit (300×600 half page) -->
       <div class="sidebar-sticky">
-        <div class="ad-slot ad-sidebar" data-ad-slot="sidebar-halfpage">
-          <span class="ad-label">Pubblicità</span>
-          <div class="ad-placeholder">300 × 600<br/>Half Page</div>
+        <div class="promo-slot promo-sidebar" data-promo-slot="sidebar-halfpage">
+          <span class="promo-label">Pubblicità</span>
+          <div class="promo-placeholder">300 × 600<br/>Half Page</div>
         </div>
 
         <!-- Mini widget: glossario -->
@@ -489,9 +545,9 @@
         </div>
 
         <!-- Second ad unit (300×250 rectangle) -->
-        <div class="ad-slot ad-square" style="margin-top:20px" data-ad-slot="sidebar-rectangle">
-          <span class="ad-label">Pubblicità</span>
-          <div class="ad-placeholder">300 × 250<br/>Rectangle</div>
+        <div class="promo-slot promo-square" style="margin-top:20px" data-promo-slot="sidebar-rectangle">
+          <span class="promo-label">Pubblicità</span>
+          <div class="promo-placeholder">300 × 250<br/>Rectangle</div>
         </div>
       </div>
     </aside>
@@ -501,9 +557,9 @@
   <!-- ══════════ FOOTER ══════════ -->
   <footer class="footer">
     <!-- Footer ad leaderboard -->
-    <div class="ad-slot ad-leaderboard" style="margin-bottom:24px" data-ad-slot="footer-leaderboard">
-      <span class="ad-label">Pubblicità</span>
-      <div class="ad-placeholder">728 × 90 — Footer Leaderboard</div>
+    <div class="promo-slot promo-leaderboard" style="margin-bottom:24px" data-promo-slot="footer-leaderboard">
+      <span class="promo-label">Pubblicità</span>
+      <div class="promo-placeholder">728 × 90 — Footer Leaderboard</div>
     </div>
     <div class="footer-inner">
       <div class="footer-logo">📊 Portfolio<strong>Lab</strong></div>
@@ -552,5 +608,6 @@
   <div id="toastContainer" style="position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none"></div>
 
   <script src="/static/js/app.js"></script>
+  <script src="/static/js/superinvestors.js"></script>
 </body>
 </html>

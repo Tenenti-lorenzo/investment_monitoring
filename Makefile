@@ -51,6 +51,7 @@ upload-static:
 	aws s3 sync frontend/static s3://$(bucket)/static --delete
 	aws s3 cp frontend/index.html  s3://$(bucket)/index.html
 	aws s3 cp frontend/login.html  s3://$(bucket)/login.html
+	aws s3 cp frontend/analisi.html s3://$(bucket)/analisi.html
 	@echo "Static files uploaded to s3://$(bucket)"
 
 # ── Full deploy workflow ────────────────────────────────────────────────────────

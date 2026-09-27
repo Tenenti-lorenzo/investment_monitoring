@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PortfolioLab – Analisi approfondita</title>
+  <meta name="description" content="Analisi approfondita del portafoglio: TWR e MWR, P&L per asset class, contributo al rendimento, look-through, rischio, frontiera efficiente e Monte Carlo." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" integrity="sha384-e6nUZLBkQ86NJ6TVVKAeSaK8jWa3NhkYWZFomE39AvDbQWeie9PlQqM3pmYW5d1g" crossorigin="anonymous"></script>
+  <link rel="stylesheet" href="/static/css/style.css" />
+  <link rel="stylesheet" href="/static/css/analisi.css" />
+  <script>
+    // Auth guard — runs before anything else
+    if (!localStorage.getItem('auth_token')) window.location.href = '/login';
+    function doLogout() {
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('auth_username');
+      window.location.href = '/login';
+    }
+  </script>
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-inner">
+      <a href="/" class="nav-logo">
+        <span class="logo-icon">📊</span>
+        <span class="logo-text">Portfolio<strong>Lab</strong></span>
+      </a>
+      <div class="nav-links">
+        <a href="/">← Dashboard</a>
+        <a href="#rendimento">Rendimento</a>
+        <a href="#composizione">Composizione</a>
+        <a href="#rischio">Rischio</a>
+        <a href="#scenari">Scenari</a>
+      </div>
+      <div class="nav-cta" style="display:flex;align-items:center;gap:12px">
+        <span id="navUsername" style="font-size:13px;color:var(--muted)"></span>
+        <button class="btn btn-ghost btn-sm" type="button" onclick="doLogout()">Esci</button>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container an-main">
+    <header class="an-title">
+      <h1>Analisi approfondita del portafoglio</h1>
+      <p>Rendimento reale dall'acquisto (TWR e MWR), P&amp;L e contributo per asset class, radiografia
+        (look-through) di ETF e fondi, obbligazioni, costi, rischio, correlazioni, frontiera efficiente,
+        simulazione Monte Carlo e confronto con allocazioni alternative.</p>
+    </header>
+
+    <!-- ══ Controls (scope every section below) ══ -->
+    <section class="card">
+      <div class="an-controls">
+        <label class="an-field">Portafoglio
+          <select id="anSource"><option value="">Caricamento…</option></select>
+        </label>
+        <label class="an-field">Orizzonte rischio
+          <select id="anLookback">
+            <option value="1">1 anno</option>
+            <option value="3" selected>3 anni</option>
+            <option value="5">5 anni</option>
+            <option value="10">10 anni</option>
+          </select>
+        </label>
+        <label class="an-field">Benchmark (ticker Yahoo)
+          <input id="anBenchmark" type="text" value="SWDA.MI" />
+        </label>
+        <label class="an-field">Tasso risk-free %
+          <input id="anRiskFree" type="number" value="2" min="0" max="20" step="0.1" />
+        </label>
+        <button id="anRunBtn" class="btn btn-primary" type="button">🔬 Esegui analisi</button>
+        <span id="anStatus" class="an-status"></span>
+      </div>
+      <div id="anNotes" class="an-notes" style="margin-top:10px"></div>
+    </section>
+
+    <div id="anEmpty" class="card an-empty">
+      Scegli un portafoglio e premi <strong>Esegui analisi</strong>.<br />
+      Suggerimento: inserisci quantità, prezzo e data di acquisto per avere TWR/MWR reali.
+    </div>
+
+    <div id="anResults" class="hidden" style="display:grid;gap:18px">
+      <nav class="an-toc">
+        <a href="#rendimento">Rendimento</a><a href="#pl">P&amp;L per asset class</a>
+        <a href="#contributo">Contributo</a><a href="#allocazione">Allocazione e drift</a>
+        <a href="#composizione">Look-through</a><a href="#obbligazioni">Obbligazioni</a>
+        <a href="#costi">Costi e valuta</a><a href="#rischio">Rischio</a>
+        <a href="#frontiera">Frontiera</a><a href="#scenari">Monte Carlo</a><a href="#alternative">Alternative</a>
+      </nav>
+
+      <!-- ══ 1. Performance since purchase ══ -->
+      <section class="card" id="rendimento">
+        <div class="card-header"><h2>Rendimento dall'acquisto</h2>
+          <p id="rendPeriod"></p></div>
+        <div id="kpiRow" class="kpi-row k4"></div>
+        <div class="an-explain">
+          <strong>TWR</strong> (time-weighted) misura quanto hanno reso gli strumenti, neutralizzando
+          tempi e importi dei versamenti: usalo per confrontarti con benchmark o altre allocazioni.
+          <strong>MWR</strong> (money-weighted, XIRR) è il tasso che eguaglia i tuoi flussi al valore finale:
+          misura quanto hai guadagnato <em>tu</em>, timing compreso. Se hai investito molto poco prima
+          di un calo, l'MWR sarà inferiore al TWR anche con gli stessi strumenti.
+        </div>
+        <div class="an-grid-2" style="margin-top:16px">
+          <div>
+            <div class="an-sub">Valore di mercato vs capitale investito (€)</div>
+            <div class="chart-box"><canvas id="chValue"></canvas></div>
+          </div>
+          <div>
+            <div class="an-sub">Crescita TWR vs benchmark (base 100)</div>
+            <div class="chart-box"><canvas id="chTwr"></canvas></div>
+          </div>
+        </div>
+        <div class="an-sub">Drawdown (dal massimo precedente, su TWR)</div>
+        <div class="chart-box short"><canvas id="chDrawdown"></canvas></div>
+        <div class="an-explain">Drawdown = (valore − massimo cumulato) / massimo cumulato. Il minimo della
+          curva è il <strong>max drawdown</strong>: la perdita peggiore subita da un picco.</div>
+      </section>
+
+      <!-- ══ 2. P&L by asset class ══ -->
+      <section class="card" id="pl">
+        <div class="card-header"><h2>Guadagno per asset class</h2>
+          <p>Dal prezzo medio di carico a oggi, in € e in %.</p></div>
+        <div class="an-grid-2">
+          <div class="chart-box"><canvas id="chClassPL"></canvas></div>
+          <div id="classTable"></div>
+        </div>
+      </section>
+
+      <!-- ══ 3. Contribution to return (waterfall) ══ -->
+      <section class="card" id="contributo">
+        <div class="card-header"><h2>Contributo al rendimento</h2>
+          <p>Ponte dal capitale investito al valore attuale: effetto prezzo per asset class ed effetto cambio.</p></div>
+        <div class="chart-box tall"><canvas id="chWaterfall"></canvas></div>
+        <div class="an-explain">Il contributo è <strong>peso × rendimento</strong>: un titolo a +40% che pesa il
+          3% conta poco. I punti percentuali (p.p.) sommati danno il rendimento totale sul capitale investito.
+          L'<strong>effetto cambio</strong> isola quanto del risultato dipende dalla valuta e non dallo strumento.</div>
+        <div id="holdingTable"></div>
+      </section>
+
+      <!-- ══ 4. Allocation over time + drift ══ -->
+      <section class="card" id="allocazione">
+        <div class="card-header"><h2>Allocazione nel tempo e drift dal target</h2>
+          <p>Target = peso iniziale sul capitale investito. Oltre ±5 p.p. valuta un ribilanciamento.</p></div>
+        <div class="an-grid-2">
+          <div><div class="an-sub">Peso per asset class (%)</div>
+            <div class="chart-box"><canvas id="chAllocTime"></canvas></div></div>
+          <div><div class="an-sub">Drift attuale vs target (p.p.)</div>
+            <div class="chart-box"><canvas id="chDrift"></canvas></div></div>
+        </div>
+      </section>
+
+      <!-- ══ 5. Look-through ══ -->
+      <section class="card" id="composizione">
+        <div class="card-header"><h2>Composizione reale (look-through)</h2>
+          <p>Cosa possiedi davvero guardando dentro ETF e fondi.</p></div>
+        <div id="ltStatus" class="an-status"></div>
+        <div class="an-grid-3">
+          <div><div class="an-sub">Asset class</div><div id="ltClasses" class="hbars"></div></div>
+          <div><div class="an-sub">Area geografica</div><div id="ltGeo" class="hbars"></div></div>
+          <div><div class="an-sub">Settori (parte azionaria)</div><div id="ltSectors" class="hbars"></div></div>
+        </div>
+        <div class="an-grid-2" style="margin-top:8px">
+          <div><div class="an-sub">Principali esposizioni sottostanti</div><div id="ltExposures"></div></div>
+          <div><div class="an-sub">Sovrapposizione tra ETF</div><div id="ltOverlaps"></div>
+            <div id="ltNote" class="an-explain"></div></div>
+        </div>
+      </section>
+
+      <!-- ══ 6. Bonds ══ -->
+      <section class="card" id="obbligazioni">
+        <div class="card-header"><h2>Obbligazioni</h2>
+          <p>Duration (sensibilità ai tassi), rendimento a scadenza e qualità del credito.</p></div>
+        <div id="bondKpis" class="kpi-row"></div>
+        <div id="bondCredit" style="margin-top:12px"></div>
+        <div id="bondTable"></div>
+        <div class="an-explain">Duration modificata ≈ perdita % del prezzo per +1% di tassi. Rendimento e
+          duration dei singoli titoli sono calcolati dal prezzo secco più il rateo stimato (cedola fissa, periodi regolari).</div>
+      </section>
+
+      <!-- ══ 7. Costs & currency ══ -->
+      <section class="card" id="costi">
+        <div class="card-header"><h2>Costi e valuta</h2>
+          <p>TER/spese correnti e rischio cambio. Per i costi ufficiali fai riferimento al KID dell'emittente.</p></div>
+        <div id="costKpis" class="kpi-row k4"></div>
+        <div class="an-grid-2" style="margin-top:8px">
+          <div id="costTable"></div>
+          <div><div class="an-sub">Valuta di negoziazione</div><div id="ltCurrencies" class="hbars"></div>
+            <div id="hedgeNote" class="an-explain"></div></div>
+        </div>
+      </section>
+
+      <!-- ══ 8. Risk ══ -->
+      <section class="card" id="rischio">
+        <div class="card-header"><h2>Rischio / rendimento</h2>
+          <p id="riskPeriod"></p></div>
+        <div id="riskTable"></div>
+        <div class="an-grid-2" style="margin-top:12px">
+          <div><div class="an-sub">Correlazione dei rendimenti giornalieri</div><div id="corrHeatmap"></div></div>
+          <div><div class="an-sub">Correlazione media rolling</div>
+            <div class="chart-box"><canvas id="chRollCorr"></canvas></div></div>
+        </div>
+        <div class="an-explain">Sopra <strong>0,7</strong> gli asset si muovono all'unisono e diversificano poco;
+          vicino a <strong>0</strong> sono indipendenti; sotto <strong>−0,2</strong> riducono la volatilità.
+          La correlazione cambia nel tempo e tende a salire nelle crisi.</div>
+      </section>
+
+      <!-- ══ 9. Efficient frontier ══ -->
+      <section class="card" id="frontiera">
+        <div class="card-header"><h2>Frontiera efficiente</h2>
+          <p>Dove si colloca il portafoglio nel trade-off rischio/rendimento (solo posizioni lunghe, stime storiche).</p></div>
+        <div class="an-grid-2">
+          <div class="chart-box tall"><canvas id="chFrontier"></canvas></div>
+          <div id="frontierTable"></div>
+        </div>
+        <div class="an-explain">Rendimenti e covarianze storiche sono stime molto rumorose: la frontiera
+          indica una direzione, non un'allocazione da copiare.</div>
+      </section>
+
+      <!-- ══ 10. Distribution + Monte Carlo ══ -->
+      <section class="card" id="scenari">
+        <div class="card-header"><h2>Distribuzione dei rendimenti e simulazione Monte Carlo</h2></div>
+        <div class="an-grid-2">
+          <div><div class="an-sub">Rendimenti giornalieri (%) vs normale</div>
+            <div class="chart-box"><canvas id="chDist"></canvas></div>
+            <div id="distStats" class="kpi-row k4" style="margin-top:10px"></div></div>
+          <div><div class="an-sub" id="mcTitle">Monte Carlo</div>
+            <div class="chart-box"><canvas id="chMonteCarlo"></canvas></div>
+            <div id="mcStats" class="kpi-row k4" style="margin-top:10px"></div></div>
+        </div>
+        <div class="an-explain">Skew negativo e curtosi alta = code sinistre più spesse della normale (crolli
+          più frequenti del previsto). Il Monte Carlo assume che rendimento medio e volatilità futuri siano
+          uguali a quelli storici: è un'ipotesi forte, leggi le bande come ordini di grandezza.</div>
+      </section>
+
+      <!-- ══ 11. Alternative allocations ══ -->
+      <section class="card" id="alternative">
+        <div class="card-header"><h2>Confronto con allocazioni alternative</h2>
+          <p id="altPeriod"></p></div>
+        <div class="chart-box tall"><canvas id="chAlternatives"></canvas></div>
+        <div id="altTable"></div>
+        <div id="altNote" class="an-explain"></div>
+      </section>
+
+      <p class="an-disclaimer">Strumento informativo, non costituisce consulenza finanziaria. Dati Yahoo Finance e
+        Borsa Italiana; prezzi rettificati per i dividendi (rendimento totale).</p>
+    </div>
+  </main>
+
+  <script src="/static/js/analisi-charts.js"></script>
+  <script src="/static/js/analisi.js"></script>
+</body>
+</html>

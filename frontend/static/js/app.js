@@ -29,6 +29,7 @@ const CAT_COLORS = {
   'Azioni':              '#3b82f6',
   'Criptovalute':        '#22d3a0',
   'Liquidità':           '#f59e0b',
+  'Obbligazioni':        '#10b981',
 };
 const CAT_ICONS = {
   'ETF Azionario':       '📊',
@@ -37,6 +38,7 @@ const CAT_ICONS = {
   'Azioni':              '👤',
   'Criptovalute':        '₿',
   'Liquidità':           '💰',
+  'Obbligazioni':        '🏛️',
 };
 const GEO_COLORS = {
   'Nord America': '#3b82f6',
@@ -74,6 +76,9 @@ let allocationChart = null;
 let geoChart = null;
 let inputMode = 'pct'; // 'pct' | 'amount'
 let baseCurrency = 'EUR';
+let _perfDataFull = null;
+let _perfExcluded = [];
+let _currentPeriodDays = 365;
 
 // ── DOM refs ────────────────────────────────
 const searchInput   = document.getElementById('searchInput');
@@ -92,18 +97,25 @@ const allocHeader   = document.getElementById('allocHeader');
 
 // ── Mode toggle ──────────────────────────────
 modeToggleBtn.addEventListener('click', () => {
+  const liqUnit = document.getElementById('liquiditaUnit');
   if (inputMode === 'pct') {
     inputMode = 'amount';
     modeToggleBtn.textContent = '% Inserisci percentuali';
     modeToggleBtn.classList.add('mode-amount-active');
     allocHeader.textContent = `Importo (${baseCurrency})`;
     liquiditaLbl.textContent = `💰 Liquidità (${baseCurrency})`;
+    if (liqUnit) liqUnit.textContent = baseCurrency;
+    liquiditaInp.removeAttribute('max');
+    liquiditaInp.step = '100';
   } else {
     inputMode = 'pct';
     modeToggleBtn.textContent = `${baseCurrency} Inserisci importi`;
     modeToggleBtn.classList.remove('mode-amount-active');
     allocHeader.textContent = 'Allocazione %';
     liquiditaLbl.textContent = '💰 Liquidità (investibile)';
+    if (liqUnit) liqUnit.textContent = '%';
+    liquiditaInp.max = '100';
+    liquiditaInp.step = '0.1';
   }
   renderTable();
   updateTotal();
@@ -135,50 +147,152 @@ async function doSearch() {
   }
 }
 
+const RISK_COLORS = {
+  'Molto basso': '#10b981', 'Basso': '#22c55e', 'Medio': '#f59e0b',
+  'Alto': '#f97316', 'Molto alto': '#ef4444', 'N/D': '#888',
+};
+
+// Bond detail panel: type, issuer country, live sovereign risk (FRED).
+function renderBondPanel(d) {
+  if (d.category !== 'Obbligazioni') return '';
+  const r = d.sovereign_risk;
+  const meta = [];
+  if (d.bond_type)      meta.push(d.bond_type);
+  if (d.issuer_country) meta.push(`Emittente: ${d.issuer_country}`);
+  if (d.currency)       meta.push(d.currency);
+  const metaLine = meta.length
+    ? `<div style="font-size:12px;color:var(--text);margin-bottom:6px">${meta.join(' · ')}</div>`
+    : '';
+
+  let riskLine = '';
+  if (r) {
+    const rc = RISK_COLORS[r.risk_tier] || '#888';
+    const parts = [`<span style="color:${rc};font-weight:700">${r.risk_tier}</span>`];
+    if (r.yield_10y != null)       parts.push(`rend. 10Y ${r.yield_10y}%`);
+    if (r.bund_spread_bps != null) parts.push(`spread Bund ${r.bund_spread_bps} bps`);
+    riskLine = `
+      <div style="font-size:12px;color:var(--muted)">Rischio sovrano: ${parts.join(' · ')}</div>
+      ${r.as_of ? `<div style="font-size:10px;color:var(--muted)">FRED · ${r.as_of}</div>` : ''}
+      ${r.note ? `<div style="font-size:10px;color:var(--muted);margin-top:4px;font-style:italic">${r.note}</div>` : ''}`;
+  }
+  let marketLine = '';
+  const m = d.market_data;
+  if (m) {
+    const n = (v, dec = 2) => v != null ? v.toLocaleString('it-IT', { maximumFractionDigits: dec }) : '—';
+    const vc = m.change_pct == null ? 'var(--muted)' : m.change_pct >= 0 ? 'var(--green)' : 'var(--red)';
+    const cpn = m.coupon_annual_pct ?? m.coupon_period_pct;
+    const facts = [];
+    if (m.maturity) facts.push(`Scadenza ${new Date(m.maturity).toLocaleDateString('it-IT')}`);
+    if (cpn != null) facts.push(`Cedola ${n(cpn, 3)}%${m.coupon_annual_pct == null ? ' (periodale)' : ''}`);
+    if (m.min_lot != null) facts.push(`Lotto min. ${n(m.min_lot, 0)}`);
+    marketLine = `
+      <div style="font-size:12px;color:var(--text);margin-bottom:4px">
+        Ultimo <strong>${n(m.last_price, 3)}</strong>
+        <span style="color:${vc}">${m.change_pct != null ? (m.change_pct >= 0 ? '+' : '') + n(m.change_pct) + '%' : ''}</span>
+        · Rif. ${n(m.reference_price, 3)} · Uff. ${n(m.official_price, 3)}
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:4px">
+        Oggi ${n(m.day_low, 3)}–${n(m.day_high, 3)} · Anno ${n(m.year_low, 3)}–${n(m.year_high, 3)} · Vol. ${n(m.volume, 0)}
+      </div>
+      ${facts.length ? `<div style="font-size:11px;color:var(--muted);margin-bottom:4px">${facts.join(' · ')}</div>` : ''}
+      <div style="font-size:10px;color:var(--muted);margin-bottom:6px">Borsa Italiana · ${m.market}${m.last_trade_at ? ' · ' + new Date(m.last_trade_at).toLocaleString('it-IT') : ''}</div>`;
+  }
+  if (!metaLine && !riskLine && !marketLine) return '';
+  return `
+    <div style="margin-top:10px;background:var(--bg);border-radius:8px;padding:10px 12px;border:1px solid var(--border)">
+      <div style="font-size:10px;color:var(--muted);font-weight:700;margin-bottom:6px;letter-spacing:0.07em;text-transform:uppercase">Dettagli obbligazione</div>
+      ${metaLine}${marketLine}${riskLine}
+    </div>`;
+}
+
 function renderSearchResult(d) {
   const color = CAT_COLORS[d.category] || '#888';
   const isPct = inputMode === 'pct';
+  const inpStyle = 'background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:6px 8px;color:var(--text);font-size:13px;font-family:inherit;outline:none';
   const mismatchWarn = d.isin_mismatch
-    ? `<div class="sr-warn">⚠️ Verifica: l'ISIN potrebbe essere stato risolto in modo errato. Controlla il ticker restituito.</div>`
+    ? `<div class="sr-warn">⚠️ Verifica: l'ISIN potrebbe essere stato risolto in modo errato.</div>`
     : '';
+  const noDataNote = d.description && !d.price
+    ? `<div style="font-size:11px;color:var(--amber);margin-top:4px">ℹ️ ${d.description}</div>`
+    : '';
+  const bondPanel = renderBondPanel(d);
+  const allocSection = isPct ? `
+    <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:flex;align-items:center;gap:8px">
+      <label style="font-size:11px;color:var(--muted);min-width:140px">Allocazione portafoglio</label>
+      <input type="number" id="srAllocInput" min="0" step="0.1" value="10"
+        style="${inpStyle};width:75px" />
+      <span style="color:var(--muted);font-size:13px">%</span>
+    </div>` : '';
 
   searchResult.className = 'search-result';
   searchResult.innerHTML = `
     <div class="sr-info">
       <div class="sr-name">${d.name}</div>
-      <div class="sr-ticker">${d.ticker}${d.exch ? ' · ' + d.exch : ''}${d.currency ? ' · ' + d.currency : ''}${d.price ? ' · ' + fmtPrice(d.price, d.currency) : ''}${d.ter != null ? ' · <span style="color:var(--amber)">TER ' + d.ter.toFixed(2) + '%</span>' : ''}</div>
+      <div class="sr-ticker">${d.ticker}${d.exch ? ' · ' + d.exch : ''}${d.currency ? ' · ' + d.currency : ''}${d.price ? ' · ' + fmtQuote(d) : ''}${d.ter != null ? ' · <span style="color:var(--amber)">TER ' + d.ter.toFixed(2) + '%</span>' : ''}</div>
       ${d.sector ? `<div class="sr-meta">${d.sector}${d.industry ? ' · ' + d.industry : ''}</div>` : ''}
       ${d.fundFamily ? `<div class="sr-meta">${d.fundFamily}</div>` : ''}
-      ${mismatchWarn}
+      ${mismatchWarn}${noDataNote}
     </div>
     <span class="cat-badge" style="background:${color}22;color:${color};border:1px solid ${color}44">${d.category}</span>
-    <div class="sr-alloc-wrap">
-      <input type="number" id="srAllocInput" min="0" step="${isPct ? '0.1' : '100'}"
-        value="${isPct ? '10' : '1000'}" />
-      <span>${isPct ? '%' : baseCurrency}</span>
+    ${bondPanel}
+
+    <div style="margin-top:10px;background:var(--bg);border-radius:8px;padding:12px 14px;border:1px solid var(--border)">
+      <div style="font-size:10px;color:var(--muted);font-weight:700;margin-bottom:10px;letter-spacing:0.07em;text-transform:uppercase">Inserisci posizione</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <label style="font-size:11px;color:var(--muted)">Valore totale (EUR)</label>
+          <input type="number" id="srValueInput" min="0" step="100" placeholder="es. 5000"
+            style="${inpStyle};width:115px" />
+        </div>
+        <span style="color:var(--muted);font-size:12px;padding-bottom:7px">oppure</span>
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <label style="font-size:11px;color:var(--muted)">${isBond(d) ? 'Valore nominale' : 'Quantità titoli'}</label>
+          <input type="number" id="srQtyInput" min="0" step="0.001" placeholder="es. 15"
+            style="${inpStyle};width:95px" />
+        </div>
+        <span style="color:var(--muted);font-size:14px;padding-bottom:7px">×</span>
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <label style="font-size:11px;color:var(--muted)">${isBond(d) ? 'Prezzo acquisto (% nominale)' : `Prezzo acquisto (${d.currency || 'EUR'})`}</label>
+          <input type="number" id="srBuyPriceInput" min="0" step="0.01" placeholder="${isBond(d) ? 'es. 98,5' : 'per titolo'}"
+            style="${inpStyle};width:120px" />
+        </div>
+      </div>
+      ${allocSection}
     </div>
-    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:6px">
-      <input type="number" id="srQtyInput" min="0" step="0.001" placeholder="Quantità (n. titoli)"
-        style="width:140px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text);font-size:12px;font-family:inherit" />
-      <input type="number" id="srBuyPriceInput" min="0" step="0.01" placeholder="Prezzo acquisto (${d.currency || baseCurrency})"
-        style="width:160px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text);font-size:12px;font-family:inherit" />
-      <span style="font-size:11px;color:var(--muted)">opzionali – per tracking performance</span>
-    </div>
-    <button class="btn btn-primary sr-add-btn" id="srAddBtn">+ Aggiungi</button>
+
+    <button class="btn btn-primary sr-add-btn" id="srAddBtn" style="margin-top:10px">+ Aggiungi al portafoglio</button>
   `;
+
+  // Auto-calc value from qty × price
+  const autoCalc = () => {
+    const qty = parseFloat(document.getElementById('srQtyInput')?.value || '') || 0;
+    const price = parseFloat(document.getElementById('srBuyPriceInput')?.value || '') || 0;
+    if (qty > 0 && price > 0) {
+      const vi = document.getElementById('srValueInput');
+      if (vi && !vi.value) vi.value = positionValue(lastSearchData, qty, price).toFixed(2);
+    }
+  };
+  document.getElementById('srQtyInput')?.addEventListener('blur', autoCalc);
+  document.getElementById('srBuyPriceInput')?.addEventListener('blur', autoCalc);
+
   document.getElementById('srAddBtn').addEventListener('click', () => {
-    const val = parseFloat(document.getElementById('srAllocInput').value || 0);
-    const qty = parseFloat(document.getElementById('srQtyInput').value || '') || null;
-    const buyPrice = parseFloat(document.getElementById('srBuyPriceInput').value || '') || null;
-    if (val <= 0 && !qty) { alert('Inserisci un valore > 0'); return; }
+    const totalValue = parseFloat(document.getElementById('srValueInput')?.value || 0);
+    const allocPct   = parseFloat(document.getElementById('srAllocInput')?.value || 0);
+    const qty        = parseFloat(document.getElementById('srQtyInput')?.value || '') || null;
+    const buyPrice   = parseFloat(document.getElementById('srBuyPriceInput')?.value || '') || null;
+    const computedValue = totalValue || (qty && buyPrice ? positionValue(lastSearchData, qty, buyPrice) : 0);
+
+    if (inputMode === 'pct' && allocPct <= 0) { alert('Inserisci l\'allocazione %'); return; }
+    if (inputMode === 'amount' && computedValue <= 0) { alert('Inserisci il valore totale o quantità × prezzo'); return; }
+
     const h = { ...lastSearchData };
     if (qty !== null) h.quantity = qty;
     if (buyPrice !== null) h.purchase_price = buyPrice;
     if (inputMode === 'pct') {
-      h.allocation = val || 0;
-      h.amount = qty && buyPrice ? qty * buyPrice : (h.amount ?? null);
+      h.allocation = allocPct;
+      h.amount = computedValue || null;
     } else {
-      h.amount = val || (qty && buyPrice ? qty * buyPrice : 0);
+      h.amount = computedValue;
       h.allocation = 0;
     }
     addHolding(h);
@@ -189,6 +303,19 @@ function renderSearchResult(d) {
 
 function fmtPrice(p, cur) {
   return (cur || '') + ' ' + parseFloat(p).toLocaleString('it-IT', { maximumFractionDigits: 2 });
+}
+// Bonds: quantity = nominal, price = % of nominal → value = nominal × price / 100.
+function isBond(h) {
+  return h && (h.category === 'Obbligazioni' || h.price_unit === 'pct_of_par');
+}
+function positionValue(h, qty, price) {
+  return qty * price * (isBond(h) ? 0.01 : 1);
+}
+function fmtQuote(d) {
+  if (!d.price) return '';
+  return isBond(d)
+    ? d.price.toLocaleString('it-IT', { maximumFractionDigits: 3 }) + '%'
+    : fmtPrice(d.price, d.currency);
 }
 function fmtAmt(v) {
   return parseFloat(v || 0).toLocaleString('it-IT', { maximumFractionDigits: 0 });
@@ -289,6 +416,7 @@ function updateTotal() {
     totalPctEl.className = 'total-pct ' + (Math.abs(tot - 100) < 0.5 ? 'total-ok' : 'total-warn');
   }
   analyzeBtn.disabled = portfolio.length === 0;
+  document.getElementById('deepAnalysisBtn').disabled = portfolio.length === 0;
   const _sbg = document.getElementById('saveBtnGroup');
   if (_sbg) _sbg.style.display = portfolio.length > 0 ? 'inline-flex' : 'none';
 
@@ -338,10 +466,15 @@ analyzeBtn.addEventListener('click', async () => {
     });
     if (!res.ok) throw new Error('Errore analisi');
     const data = await res.json();
-    renderDashboard(data, body.holdings, liquiditaPct);
+    const terMap = data.ter_map || {};
+    const enrichedHoldings = body.holdings.map(h =>
+      terMap[h.ticker] != null ? { ...h, ter: terMap[h.ticker] } : h
+    );
+    renderDashboard(data, enrichedHoldings, liquiditaPct, liqVal);
     dashboard.classList.remove('hidden');
+    document.getElementById('portfolioSummaryCard').classList.remove('hidden');
     dashboard.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    fetchPerformance(body.holdings, liqVal);
+    fetchPerformance(enrichedHoldings, liqVal);
   } catch (e) {
     alert('Errore: ' + e.message);
   } finally {
@@ -382,12 +515,13 @@ clearBtn.addEventListener('click', () => {
   updateTotal();
   renderPac();
   dashboard.classList.add('hidden');
+  document.getElementById('portfolioSummaryCard').classList.add('hidden');
   searchResult.className = 'search-result hidden';
   document.getElementById('plBanner').style.display = 'none';
 });
 
 // ── Render Dashboard ────────────────────────
-function renderDashboard(data, holdings, liq) {
+function renderDashboard(data, holdings, liq, liqEur = 0) {
   renderAllocationChart(data.category_pct);
   renderCategoryBars(data.category_pct);
   renderGeoChart(data.geography);
@@ -395,6 +529,8 @@ function renderDashboard(data, holdings, liq) {
   renderClassExposure(data.category_pct);
   renderMetriche(data.metrics);
   renderCurrencyRisk(data.currency_exposure || {});
+  renderCurrencyRisk(data.underlying_currency_exposure || {}, 'underlyingCurrencyRisk');
+  renderPortfolioSummary(holdings, liqEur, liq); // liq = liquiditaPct
 }
 
 function renderAllocationChart(catPct) {
@@ -478,12 +614,17 @@ function renderHoldingsList(holdings, liq, total) {
     const color = CAT_COLORS[h.category] || '#888';
     const pct = (h.allocation / total * 100).toFixed(1);
     const barW = (h.allocation / maxAlloc * 100).toFixed(1);
+    let terBadge = '';
+    if (h.ter != null && h.ter > 0) {
+      const terColor = h.ter < 0.1 ? '#22d3a0' : h.ter <= 0.2 ? '#f59e0b' : '#f43f5e';
+      terBadge = `<span style="font-size:10px;font-weight:600;color:${terColor}">TER ${h.ter.toFixed(2)}%</span>`;
+    }
     return `
       <div class="hl-row">
         <div class="hl-badge" style="background:${color}22;color:${color};border:1px solid ${color}44">${h.ticker.slice(0,4)}</div>
         <div class="hl-info">
           <div class="hl-name">${h.name}</div>
-          <div class="hl-ticker">${h.ticker}${h.currency ? ' · <span class="cur-tag">' + h.currency + '</span>' : ''}</div>
+          <div class="hl-ticker">${h.ticker}${h.currency ? ' · <span class="cur-tag">' + h.currency + '</span>' : ''}${terBadge ? ' &nbsp;' + terBadge : ''}</div>
         </div>
         <div class="hl-bar-wrap">
           <div class="hl-bar-track"><div class="hl-bar-fill" style="width:${barW}%;background:${color}"></div></div>
@@ -570,6 +711,12 @@ async function fetchPerformance(holdings, liquidita) {
     return amt ? { yf_ticker: h.yf_ticker, amount: amt } : null;
   }).filter(Boolean);
 
+  // Holdings excluded from the chart because they have no yf_ticker (or no amount)
+  const excludedHoldings = holdings.filter(h => h.ticker !== 'CASH').filter(h => {
+    const hasAmt = h.amount > 0 || (h.quantity > 0 && h.purchase_price > 0);
+    return !h.yf_ticker || !hasAmt;
+  });
+
   if (!perfHoldings.length) {
     perfCard.classList.remove('hidden');
     document.getElementById('perfReturn').textContent = '';
@@ -600,7 +747,7 @@ async function fetchPerformance(holdings, liquidita) {
       canvas.style.display = 'none';
       return;
     }
-    renderPerformanceChart(data);
+    renderPerformanceChart(data, excludedHoldings);
   } catch {
     document.getElementById('perfReturn').textContent = '';
     document.getElementById('perfSummary').innerHTML =
@@ -609,18 +756,58 @@ async function fetchPerformance(holdings, liquidita) {
   }
 }
 
-function renderPerformanceChart(data) {
-  const isPos   = data.return_pct >= 0;
-  const color   = isPos ? '#22d3a0' : '#f43f5e';
-  const sign    = isPos ? '+' : '';
-  const retEl   = document.getElementById('perfReturn');
-  retEl.textContent = `${sign}${data.return_pct.toFixed(2)}%`;
+function renderPerformanceChart(data, excludedHoldings) {
+  _perfDataFull = data;
+  _perfExcluded = excludedHoldings || [];
+  _currentPeriodDays = 365;
+  document.querySelectorAll('.period-btn').forEach(b => {
+    b.classList.toggle('active', parseInt(b.dataset.days) === 365);
+    b.onclick = () => {
+      document.querySelectorAll('.period-btn').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+      _currentPeriodDays = parseInt(b.dataset.days);
+      _renderPerfForPeriod(_currentPeriodDays);
+    };
+  });
+  _renderPerfForPeriod(365);
+}
+
+function _renderPerfForPeriod(days) {
+  if (!_perfDataFull) return;
+  let dates  = _perfDataFull.dates;
+  let values = _perfDataFull.values;
+  if (days && dates.length > days) {
+    dates  = dates.slice(-days);
+    values = values.slice(-days);
+  }
+  const startVal = values.length > 0 ? values[0] : 0;
+  const endVal   = values.length > 0 ? values[values.length - 1] : 0;
+  const retPct   = startVal > 0 ? (endVal / startVal - 1) * 100 : 0;
+  const isPos    = retPct >= 0;
+  const color    = isPos ? '#22d3a0' : '#f43f5e';
+  const sign     = isPos ? '+' : '';
+
+  const retEl = document.getElementById('perfReturn');
+  retEl.textContent = `${sign}${retPct.toFixed(2)}%`;
   retEl.style.color = color;
 
+  const coveredPct = _perfDataFull.covered_pct ?? 100;
+  const failedTickers = (_perfDataFull.failed_tickers || []);
+  const allExcluded = [
+    ..._perfExcluded.map(h => h.ticker || h.name).filter(Boolean),
+    ...failedTickers,
+  ];
+  const coverageNote = coveredPct < 99
+    ? `<span style="color:var(--amber);font-size:11px">
+        Grafico basato su ${coveredPct}% del portafoglio
+        ${allExcluded.length ? `(esclusi: ${allExcluded.join(', ')} — dati non disponibili su Yahoo Finance)` : ''}
+       </span>`
+    : `<span style="color:var(--muted);font-size:11px">Basato su prezzi Yahoo Finance</span>`;
+
   document.getElementById('perfSummary').innerHTML = `
-    <span>Valore iniziale: <strong style="color:var(--text)">€${fmtAmt(data.initial_value)}</strong></span>
-    <span>Valore attuale: <strong style="color:${color}">€${fmtAmt(data.current_value)}</strong></span>
-    <span style="color:var(--muted);font-size:11px">Basato su prezzi Yahoo Finance — ultimi 12 mesi</span>
+    <span>Valore iniziale: <strong style="color:var(--text)">€${fmtAmt(startVal)}</strong></span>
+    <span>Valore attuale: <strong style="color:${color}">€${fmtAmt(endVal)}</strong></span>
+    ${coverageNote}
   `;
 
   if (perfChart) perfChart.destroy();
@@ -628,9 +815,9 @@ function renderPerformanceChart(data) {
   perfChart = new Chart(ctx, {
     type: 'line',
     data: {
-      labels: data.dates,
+      labels: dates,
       datasets: [{
-        data: data.values,
+        data: values,
         borderColor: color,
         backgroundColor: color + '18',
         borderWidth: 2,
@@ -647,16 +834,15 @@ function renderPerformanceChart(data) {
       }},
       scales: {
         x: { ticks: { maxTicksLimit: 8, color: '#7880a0', font: { size: 11 } }, grid: { color: '#1e2238' } },
-        y: { ticks: { color: '#7880a0', font: { size: 11 },
-               callback: v => '€' + fmtAmt(v) },
+        y: { ticks: { color: '#7880a0', font: { size: 11 }, callback: v => '€' + fmtAmt(v) },
              grid: { color: '#1e2238' } },
       },
     },
   });
 }
 
-function renderCurrencyRisk(currencyExp) {
-  const container = document.getElementById('currencyRisk');
+function renderCurrencyRisk(currencyExp, containerId = 'currencyRisk') {
+  const container = document.getElementById(containerId);
   if (!container) return;
 
   const entries = Object.entries(currencyExp).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
@@ -680,6 +866,72 @@ function renderCurrencyRisk(currencyExp) {
       </div>
     `;
   }).join('');
+}
+
+function renderPortfolioSummary(holdings, liqEur, liqPct) {
+  const container = document.getElementById('portfolioSummary');
+  if (!container || holdings.length === 0) return;
+
+  const totalEur  = holdings.reduce((s, h) => s + (h.amount || 0), 0) + (liqEur || 0);
+  const totalPct  = holdings.reduce((s, h) => s + (h.allocation || 0), 0) + (liqPct || 0);
+  const hasAmounts = totalEur > 0;
+
+  const rows = holdings.map(h => {
+    const color  = CAT_COLORS[h.category] || '#888';
+    const pct    = (h.allocation || 0).toFixed(1);
+    const amtStr = (h.amount || 0) > 0 ? `€${fmtAmt(h.amount)}` : '—';
+    let terBadge = '';
+    if (h.ter != null && h.ter > 0) {
+      const terColor = h.ter < 0.1 ? '#22d3a0' : h.ter <= 0.2 ? '#f59e0b' : '#f43f5e';
+      terBadge = `<span style="display:inline-block;margin-top:3px;font-size:10px;font-weight:600;color:${terColor}">TER ${h.ter.toFixed(2)}%</span>`;
+    }
+    return `
+      <tr>
+        <td style="padding:8px 6px;font-size:13px;font-weight:700;color:${color}">${h.ticker}</td>
+        <td style="padding:8px 6px;font-size:13px;line-height:1.3">
+          ${h.name.length > 38 ? h.name.slice(0, 38) + '…' : h.name}
+          ${terBadge ? '<br>' + terBadge : ''}
+        </td>
+        <td style="padding:8px 6px"><span class="cat-badge" style="background:${color}22;color:${color};border:1px solid ${color}44">${h.category}</span></td>
+        <td style="padding:8px 6px;font-size:13px;text-align:right;color:var(--muted)">${pct}%</td>
+        <td style="padding:8px 6px;font-size:14px;font-weight:600;text-align:right">${amtStr}</td>
+      </tr>`;
+  }).join('');
+
+  const liqRow = ((liqEur || 0) > 0 || (liqPct || 0) > 0) ? `
+    <tr>
+      <td style="padding:8px 6px;font-size:13px;font-weight:700;color:#f59e0b">CASH</td>
+      <td style="padding:8px 6px;font-size:13px;color:var(--muted)">Liquidità</td>
+      <td style="padding:8px 6px"><span class="cat-badge" style="background:#f59e0b22;color:#f59e0b;border:1px solid #f59e0b44">Liquidità</span></td>
+      <td style="padding:8px 6px;font-size:13px;text-align:right;color:var(--muted)">${(liqPct || 0).toFixed(1)}%</td>
+      <td style="padding:8px 6px;font-size:14px;font-weight:600;text-align:right">${(liqEur || 0) > 0 ? '€' + fmtAmt(liqEur) : '—'}</td>
+    </tr>` : '';
+
+  container.innerHTML = `
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-family:inherit">
+        <thead>
+          <tr style="border-bottom:1px solid var(--border)">
+            <th style="padding:8px 6px;text-align:left;font-size:11px;color:var(--muted);font-weight:600">Ticker</th>
+            <th style="padding:8px 6px;text-align:left;font-size:11px;color:var(--muted);font-weight:600">Strumento</th>
+            <th style="padding:8px 6px;text-align:left;font-size:11px;color:var(--muted);font-weight:600">Categoria</th>
+            <th style="padding:8px 6px;text-align:right;font-size:11px;color:var(--muted);font-weight:600">Peso %</th>
+            <th style="padding:8px 6px;text-align:right;font-size:11px;color:var(--muted);font-weight:600">Valore EUR</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows}
+          ${liqRow}
+          <tr style="border-top:2px solid var(--border)">
+            <td colspan="3" style="padding:12px 6px;font-size:14px;font-weight:700;letter-spacing:0.03em">TOTALE</td>
+            <td style="padding:12px 6px;font-size:14px;font-weight:700;text-align:right">${totalPct.toFixed(1)}%</td>
+            <td style="padding:12px 6px;font-size:17px;font-weight:700;text-align:right;color:var(--green,#22d3a0)">${hasAmounts ? '€' + fmtAmt(totalEur) : '—'}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    ${!hasAmounts ? '<p style="font-size:11px;color:var(--muted);margin-top:10px">💡 Inserisci importi EUR alle posizioni per vedere il valore totale.</p>' : ''}
+  `;
 }
 
 // ── Init ────────────────────────────────────
@@ -797,19 +1049,23 @@ extractBtn.addEventListener('click', async () => {
 function openExtractModal() {
   extractedItemsList.innerHTML = extractedItems.map((item, i) => {
     const sub = [
-      item.isin           ? `ISIN: ${item.isin}`                                    : '',
-      item.ticker         ? `Ticker: ${item.ticker}`                                : '',
-      item.quantity       != null ? `Qtà: ${item.quantity}`                         : '',
-      item.purchase_price != null ? `P.acq: €${fmtAmt(item.purchase_price)}`       : '',
-      item.value          != null ? `Valore: €${fmtAmt(item.value)}`                : '',
-      item.purchase_date  ? `Data acq: ${item.purchase_date}`                       : '',
+      item.isin     ? `ISIN: ${item.isin}`             : '',
+      item.ticker   ? `Ticker: ${item.ticker}`          : '',
+      item.quantity != null ? `Qtà: ${item.quantity}`   : '',
+      item.value    != null ? `Valore: €${fmtAmt(item.value)}` : '',
     ].filter(Boolean).join(' · ');
+    const pmcVal = item.purchase_price != null ? item.purchase_price : '';
+    const pmcPlaceholder = item.purchase_price != null ? '' : 'usa prezzo odierno';
     return `
       <div class="extract-item">
         <input type="checkbox" id="ei${i}" data-i="${i}" checked />
         <div class="extract-item-info">
           <div class="extract-item-name">${item.name || item.isin || item.ticker || 'Strumento ' + (i+1)}</div>
           ${sub ? `<div class="extract-item-sub">${sub}</div>` : ''}
+        </div>
+        <div class="extract-item-pmc">
+          <label style="font-size:11px;color:var(--muted)">P.acq €</label>
+          <input type="number" id="pmc${i}" class="pmc-input" placeholder="${pmcPlaceholder}" value="${pmcVal}" step="any" min="0" />
         </div>
       </div>
     `;
@@ -830,12 +1086,12 @@ deselectAllBtn.addEventListener('click', () => {
 
 // ── Import selected ──────────────────────────
 importSelectedBtn.addEventListener('click', async () => {
-  const checked = [...extractedItemsList.querySelectorAll('input[type=checkbox]:checked')]
-    .map(c => extractedItems[+c.dataset.i]);
+  const checkedWithIdx = [...extractedItemsList.querySelectorAll('input[type=checkbox]:checked')]
+    .map(c => ({ item: extractedItems[+c.dataset.i], idx: +c.dataset.i }));
 
-  if (!checked.length) { importStatus.textContent = 'Seleziona almeno uno strumento.'; return; }
+  if (!checkedWithIdx.length) { importStatus.textContent = 'Seleziona almeno uno strumento.'; return; }
 
-  const hasValues = checked.some(x => x.value != null && x.value > 0);
+  const hasValues = checkedWithIdx.some(({ item: x }) => x.value != null && x.value > 0);
   if (hasValues && inputMode !== 'amount') {
     inputMode = 'amount';
     modeToggleBtn.textContent = '% Inserisci percentuali';
@@ -846,7 +1102,7 @@ importSelectedBtn.addEventListener('click', async () => {
 
   importSelectedBtn.disabled = true;
   let ok = 0, fail = 0;
-  for (const item of checked) {
+  for (const { item, idx } of checkedWithIdx) {
     importStatus.textContent = `Risolvo ${item.isin || item.ticker || item.name}…`;
     const q = item.isin || item.ticker;
     if (!q) { fail++; continue; }
@@ -855,8 +1111,18 @@ importSelectedBtn.addEventListener('click', async () => {
       if (!res.ok) throw new Error();
       const d = await res.json();
       const h = { ...d };
+
+      // Purchase price: prefer user-edited input, then PDF value, then current price
+      const pmcInput = document.getElementById('pmc' + idx);
+      const pmcRaw = pmcInput ? parseFloat(pmcInput.value) : NaN;
+      h.purchase_price = !isNaN(pmcRaw) && pmcRaw > 0
+        ? pmcRaw
+        : (item.purchase_price ?? d.price ?? null);
+
+      if (item.quantity != null) h.quantity = item.quantity;
+
       if (inputMode === 'amount') {
-        h.amount = item.value ?? item.quantity ?? 0;
+        h.amount = item.value ?? (item.quantity > 0 && h.purchase_price ? positionValue(h, item.quantity, h.purchase_price) : 0);
         h.allocation = 0;
       } else {
         h.allocation = 0;
@@ -916,6 +1182,24 @@ async function savePortfolio() {
     showToast('Errore nel salvataggio.', 'error');
   }
 }
+
+// ── Deep analysis hand-off (/analisi reads this snapshot) ──
+function openDeepAnalysis(e) {
+  if (e) e.preventDefault();
+  if (portfolio.length) {
+    const snapshot = {
+      name:      portfolioNameInput.value.trim() || 'Portafoglio corrente',
+      holdings:  portfolio,
+      liquidita: parseFloat(liquiditaInp.value || 0),
+      inputMode,
+      savedAt:   new Date().toISOString(),
+    };
+    try { localStorage.setItem('analysis_portfolio', JSON.stringify(snapshot)); } catch { /* storage full/blocked */ }
+  }
+  window.location.href = '/analisi';
+}
+document.getElementById('deepAnalysisBtn').addEventListener('click', openDeepAnalysis);
+document.getElementById('navDeepAnalysis').addEventListener('click', openDeepAnalysis);
 
 loadBtn.addEventListener('click', openPortfolioList);
 portfolioListClose.addEventListener('click', () => portfolioListModal.classList.add('hidden'));
@@ -1094,7 +1378,7 @@ function renderPLResult(data) {
         <tbody>${rows}</tbody>
       </table>
     </div>
-    <p style="font-size:11px;color:var(--muted);margin-top:8px">Prezzi in tempo reale da Yahoo Finance. Se la valuta differisce dall'EUR il confronto è approssimativo.</p>
+    <p style="font-size:11px;color:var(--muted);margin-top:8px">Prezzi da Yahoo Finance (obbligazioni: Borsa Italiana, % del nominale). Se la valuta differisce dall'EUR il confronto è approssimativo.</p>
   `;
 }
 

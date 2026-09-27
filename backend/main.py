@@ -12,6 +12,7 @@ import re
 import os
 import io
 import json
+import base64
 import secrets
 import smtplib
 from email.mime.text import MIMEText
@@ -35,9 +36,24 @@ def _load_aws_secrets() -> None:
 _load_aws_secrets()
 
 import anthropic
-import pypdf
 import bcrypt as _bcrypt_lib
 from jose import jwt, JWTError
+from backend.bonds import classify_bond, fetch_sovereign_risk
+from backend.bond_market import BondQuote, fetch_bond_quote
+from backend.analysis_models import DeepAnalysisRequest, DeepAnalysisResponse, LookThroughResponse
+from backend.deep_analysis import run_deep_analysis
+from backend.exceptions import InsufficientDataError
+from backend.look_through import run_look_through
+from backend.superinvestors import (
+    ConsensusStock,
+    Manager,
+    ManagerPortfolio,
+    StockOwnership,
+    fetch_consensus,
+    fetch_manager_portfolio,
+    fetch_portfolio_overlap,
+    list_managers,
+)
 from backend.database import (
     init_db,
     get_user_by_username,
@@ -79,6 +95,10 @@ if frontend_path.exists():
     @app.get("/login")
     def login_page():
         return FileResponse(str(frontend_path / "login.html"))
+
+    @app.get("/analisi")
+    def analysis_page():
+        return FileResponse(str(frontend_path / "analisi.html"))
 
 
 # ─── Auth helpers ────────────────────────────────────────────────────────────
@@ -226,9 +246,11 @@ _EUR_EXCH_PRIORITY = {
 }
 _ALL_PREF_EXCHANGES = set(_EUR_EXCH_PRIORITY.keys())
 
-def isin_to_ticker(isin: str) -> dict:
-    """Resolve ISIN to ticker via OpenFIGI.
-    For European ETF domiciles (IE/LU/GB/FR) prefers EUR-denominated exchanges."""
+def openfigi_items(isin: str) -> list[dict]:
+    """Raw OpenFIGI v3 mapping rows for an ISIN ([] on failure).
+
+    Shared by isin_to_ticker (equity/ETF resolution) and classify_bond so the
+    network round-trip happens once per search."""
     try:
         url = "https://api.openfigi.com/v3/mapping"
         payload = [{"idType": "ID_ISIN", "idValue": isin}]
@@ -237,34 +259,48 @@ def isin_to_ticker(isin: str) -> dict:
         if resp.status_code == 200:
             data = resp.json()
             if data and data[0].get("data"):
-                items = data[0]["data"]
-                et = [x for x in items if x.get("exchCode") in _ALL_PREF_EXCHANGES]
-                candidates = et if et else items
+                return data[0]["data"]
+    except Exception:
+        pass
+    return []
 
-                # For European ETF/UCITS domiciles, prefer fund/ETP types
-                etf_domiciles = {"IE", "LU", "GB", "FR", "DE", "LI", "CH"}
-                if isin[:2] in etf_domiciles:
-                    fund_kw = {"etf", "etp", "open-end fund", "fund"}
-                    fund_cands = [
-                        x for x in candidates
-                        if any(k in (x.get("securityType") or "").lower() for k in fund_kw)
-                    ]
-                    if fund_cands:
-                        candidates = fund_cands
-                    # Sort by EUR-priority so Xetra/Milan/Paris beat London
-                    candidates = sorted(
-                        candidates,
-                        key=lambda x: _EUR_EXCH_PRIORITY.get(x.get("exchCode", ""), 0),
-                        reverse=True,
-                    )
 
-                best = candidates[0]
-                return {
-                    "ticker": best.get("ticker", ""),
-                    "name": best.get("name", ""),
-                    "exchCode": best.get("exchCode", ""),
-                    "securityType": best.get("securityType", ""),
-                }
+def isin_to_ticker(isin: str, items: Optional[list[dict]] = None) -> dict:
+    """Resolve ISIN to ticker via OpenFIGI.
+    For European ETF domiciles (IE/LU/GB/FR) prefers EUR-denominated exchanges."""
+    try:
+        if items is None:
+            items = openfigi_items(isin)
+        if items:
+            et = [x for x in items if x.get("exchCode") in _ALL_PREF_EXCHANGES]
+            candidates = et if et else items
+
+            # For European ETF/UCITS domiciles, prefer fund/ETP types
+            etf_domiciles = {"IE", "LU", "GB", "FR", "DE", "LI", "CH"}
+            if isin[:2] in etf_domiciles:
+                fund_kw = {"etf", "etp", "open-end fund", "fund"}
+                fund_cands = [
+                    x for x in candidates
+                    if any(k in (x.get("securityType") or "").lower() for k in fund_kw)
+                ]
+                if fund_cands:
+                    candidates = fund_cands
+                # Sort by EUR-priority so Xetra/Milan/Paris beat London
+                candidates = sorted(
+                    candidates,
+                    key=lambda x: _EUR_EXCH_PRIORITY.get(x.get("exchCode", ""), 0),
+                    reverse=True,
+                )
+
+            best = candidates[0]
+            return {
+                "ticker": best.get("ticker", ""),
+                "name": best.get("name", ""),
+                "exchCode": best.get("exchCode", ""),
+                "securityType": best.get("securityType", ""),
+                "securityType2": best.get("securityType2", ""),
+                "marketSector": best.get("marketSector", ""),
+            }
     except Exception:
         pass
     return {}
@@ -316,6 +352,20 @@ def classify_etf_type(info: dict, name: str) -> str:
     return "ETF Azionario"
 
 
+# ─── Geography → Underlying Currency mapping ─────────────────────────────────
+# Approximate currency weights by geographic region (based on MSCI index compositions)
+GEO_TO_CURRENCY: dict[str, dict[str, float]] = {
+    "Nord America":      {"USD": 95, "CAD": 5},
+    "Europa":            {"EUR": 55, "GBP": 22, "CHF": 9, "SEK": 5, "DKK": 3, "NOK": 3, "_altri": 3},
+    "Asia-Pacifico":     {"JPY": 45, "AUD": 20, "HKD": 12, "KRW": 10, "SGD": 7, "NZD": 6},
+    "Mercati Emergenti": {"CNY": 27, "TWD": 15, "INR": 13, "KRW": 12, "BRL": 6, "ZAR": 4, "SAR": 4, "MXN": 3, "USD": 5, "_altri": 11},
+    "Globale":           {"USD": 62, "EUR": 12, "JPY": 6, "GBP": 4, "CHF": 3, "CAD": 3, "AUD": 2, "_altri": 8},
+    "Italia":            {"EUR": 100},
+    "Altre":             {"USD": 40, "EUR": 25, "CNY": 10, "JPY": 8, "GBP": 7, "_altri": 10},
+}
+# Categories where trading currency = underlying currency (no geo mapping needed)
+_DIRECT_CURRENCY_CATEGORIES = {"Azioni", "Obbligazioni", "Criptovalute"}
+
 # ─── ETF Geography ───────────────────────────────────────────────────────────
 
 def get_etf_geography(info: dict) -> dict:
@@ -357,7 +407,72 @@ def get_etf_composition(info: dict, ticker_obj) -> list:
     return []
 
 
+# ─── Crypto ticker mapping (Yahoo Finance uses TICKER-EUR) ───────────────────
+CRYPTO_YF_MAP = {
+    "BTC": "BTC-EUR", "ETH": "ETH-EUR", "SOL": "SOL-EUR",
+    "ADA": "ADA-EUR", "XRP": "XRP-EUR", "DOT": "DOT-EUR",
+    "DOGE": "DOGE-EUR", "MATIC": "MATIC-EUR", "AVAX": "AVAX-EUR",
+    "LINK": "LINK-EUR", "LTC": "LTC-EUR", "UNI": "UNI-EUR",
+    "IMX": "IMX-EUR", "OP": "OP-EUR", "ARB": "ARB-EUR",
+}
+
 # ─── Search endpoint ─────────────────────────────────────────────────────────
+
+def _bond_search_response(isin: str, figi_data: dict, bond) -> dict:
+    """Build the /api/search payload for a single bond.
+
+    Price and market data come from Borsa Italiana (MOT/ExtraMOT/EuroTLX), quoted
+    in % of nominal; bonds not listed in Milan keep a manual price."""
+    risk = (
+        fetch_sovereign_risk(bond.issuer_country, bond.currency)
+        if bond.bond_type == "Governativo" and bond.issuer_country
+        else None
+    )
+    quote = fetch_bond_quote(isin)
+    name = (quote.name if quote and quote.name else None) or figi_data.get("name") or isin
+    currency = (quote.currency if quote and quote.currency else None) or bond.currency
+    desc = (
+        "Obbligazione: prezzo in % del valore nominale. Quantità = valore nominale."
+        if quote and quote.price
+        else "Obbligazione non quotata su Borsa Italiana: inserisci valore nominale "
+             "e prezzo (% del nominale) manualmente (o estrai cedola/scadenza dal PDF)."
+    )
+    return {
+        "isin": isin,
+        "ticker": figi_data.get("ticker") or isin,
+        "yf_ticker": "",
+        "name": name,
+        "category": "Obbligazioni",
+        "quoteType": "BOND",
+        "price": quote.price if quote else None,
+        "price_unit": "pct_of_par",
+        "currency": currency,
+        "sector": "", "industry": "", "fundFamily": "",
+        "description": desc,
+        "geography": bond.geography,
+        "composition": [],
+        "exch": quote.market if quote else figi_data.get("exchCode", ""),
+        "isin_mismatch": False,
+        "ter": None,
+        # Bond-specific
+        "bond_type": bond.bond_type,
+        "issuer_country": bond.issuer_country,
+        "sovereign_risk": risk.model_dump() if risk else None,
+        "market_data": quote.model_dump() if quote else None,
+    }
+
+
+@app.get("/api/bond/quote/{isin}", response_model=BondQuote)
+def bond_quote(isin: str, _: str = Depends(get_current_user)) -> BondQuote:
+    """Live market data for a bond listed on Borsa Italiana (MOT/ExtraMOT/EuroTLX)."""
+    isin = isin.strip().upper()
+    if not re.match(r"^[A-Z]{2}[A-Z0-9]{10}$", isin):
+        raise HTTPException(400, "ISIN non valido")
+    quote = fetch_bond_quote(isin)
+    if quote is None:
+        raise HTTPException(404, f"Obbligazione {isin} non trovata su Borsa Italiana")
+    return quote
+
 
 @app.get("/api/search")
 def search_asset(
@@ -365,16 +480,24 @@ def search_asset(
     _: str = Depends(get_current_user),
 ):
     q = q.strip().upper()
+    if q in CRYPTO_YF_MAP:
+        q = CRYPTO_YF_MAP[q]
 
     figi_data = {}
     yf_ticker_str = q
 
     is_isin = bool(re.match(r"^[A-Z]{2}[A-Z0-9]{10}$", q))
     if is_isin:
-        figi_data = isin_to_ticker(q)
-        if not figi_data:
+        items = openfigi_items(q)
+        if not items:
             raise HTTPException(404, f"ISIN {q} non trovato su OpenFIGI")
-        yf_ticker_str = build_yf_ticker(figi_data["ticker"], figi_data.get("exchCode", ""))
+        figi_data = isin_to_ticker(q, items=items)
+
+        bond = classify_bond(items, q)
+        if bond.is_bond:
+            return _bond_search_response(q, figi_data, bond)
+
+        yf_ticker_str = build_yf_ticker(figi_data.get("ticker", q), figi_data.get("exchCode", ""))
 
     ticker_obj = yf.Ticker(yf_ticker_str)
     info = ticker_obj.info or {}
@@ -384,6 +507,37 @@ def search_asset(
         info = ticker_obj.info or {}
 
     if not info:
+        if figi_data:
+            name = figi_data.get("name") or q
+            sec_type = figi_data.get("securityType", "")
+            sec_lower = sec_type.lower()
+            bond_sec_kw = ["bond", "government", "treasury", "note", "bill", "gilt", "btp", "obbligaz"]
+            isin_prefix = q[:2] if is_isin else ""
+            if any(k in sec_lower for k in bond_sec_kw) or isin_prefix == "IT":
+                category = "Obbligazioni"
+                geo = {"Europa": 100} if isin_prefix in {"IT", "DE", "FR", "ES", "PT", "BE", "AT", "NL"} else {"Globale": 100}
+                currency = "EUR"
+            else:
+                category = guess_category_from_name(name, sec_type)
+                geo = {"Globale": 100}
+                currency = ""
+            return {
+                "isin": q if is_isin else "",
+                "ticker": figi_data.get("ticker") or q,
+                "yf_ticker": "",
+                "name": name,
+                "category": category,
+                "quoteType": "BOND",
+                "price": None,
+                "currency": currency,
+                "sector": "", "industry": "", "fundFamily": "",
+                "description": "Strumento non disponibile su Yahoo Finance. Inserisci il valore manualmente.",
+                "geography": geo,
+                "composition": [],
+                "exch": figi_data.get("exchCode", ""),
+                "isin_mismatch": False,
+                "ter": None,
+            }
         raise HTTPException(404, f"Nessun dato per {yf_ticker_str}")
 
     name = info.get("longName") or info.get("shortName") or figi_data.get("name") or q
@@ -428,8 +582,21 @@ def search_asset(
     fund_family = info.get("fundFamily", "")
     description = (info.get("longBusinessSummary") or "")[:400]
 
-    raw_ter = info.get("annualReportExpenseRatio") or info.get("expenseRatio")
-    ter = round(float(raw_ter) * 100, 4) if raw_ter else None
+    ter = _ter_from_info(info)
+    if ter is None:
+        try:
+            fd = ticker_obj.funds_data
+            fo = getattr(fd, "fund_overview", None) or {}
+            if isinstance(fo, dict):
+                raw_fd = fo.get("expenseRatio") or fo.get("annualReportExpenseRatio")
+                if raw_fd:
+                    val = float(raw_fd)
+                    result = round(val * 100, 4) if val <= 1 else round(val, 4)
+                    ter = result if 0 < result <= 5 else None
+        except Exception:
+            pass
+    if ter is None and is_isin:
+        ter = _fetch_ter_justetf(q)
 
     return {
         "isin": q if is_isin else "",
@@ -475,13 +642,81 @@ class PortfolioRequest(BaseModel):
 
 _ETF_CATEGORIES = {"ETF Azionario", "ETF Obbligazionario", "ETF Bilanciato", "ETF Materie Prime", "ETF"}
 
+def _ter_from_info(info: dict) -> float | None:
+    raw = (info.get("annualReportExpenseRatio")
+           or info.get("expenseRatio")
+           or info.get("netExpenseRatio")
+           or info.get("totalExpenseRatio"))
+    if not raw:
+        return None
+    val = float(raw)
+    # yfinance returns decimals (0.002 = 0.2%); if > 1 it's already a percentage
+    result = round(val * 100, 4) if val <= 1 else round(val, 4)
+    return result if 0 < result <= 5 else None
+
 def _fetch_ter_yf(ticker: str) -> float | None:
     try:
-        info = yf.Ticker(ticker).info
-        raw = info.get("annualReportExpenseRatio") or info.get("expenseRatio")
-        return round(float(raw) * 100, 4) if raw else None
+        t = yf.Ticker(ticker)
+        ter = _ter_from_info(t.info or {})
+        if ter is not None:
+            return ter
+        try:
+            fd = t.funds_data
+            fo = getattr(fd, "fund_overview", None) or {}
+            if isinstance(fo, dict):
+                raw = fo.get("expenseRatio") or fo.get("annualReportExpenseRatio")
+                if raw:
+                    val = float(raw)
+                    result = round(val * 100, 4) if val <= 1 else round(val, 4)
+                    return result if 0 < result <= 5 else None
+        except Exception:
+            pass
     except Exception:
+        pass
+    return None
+
+
+def _fetch_ter_justetf(isin: str) -> float | None:
+    """Scrape TER from justETF profile page — covers UCITS ETFs missing from Yahoo Finance."""
+    if not isin or len(isin) != 12:
         return None
+    try:
+        url = f"https://www.justetf.com/en/etf-profile.html?isin={isin}"
+        headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+            ),
+            "Accept-Language": "en-US,en;q=0.9",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        }
+        resp = requests.get(url, headers=headers, timeout=10)
+        if resp.status_code != 200:
+            return None
+        text = resp.text
+        # justETF shows TER near "Total expense ratio" label; decimal can be "." or ","
+        # NOTE: the generic "% p.a." pattern was removed — it matches performance figures too.
+        patterns = [
+            r'Total expense ratio[^%\d]{0,80}?(\d+[.,]\d+)\s*%',
+            r'ter["\s:]+(\d+[.,]\d+)',     # JSON-LD / data attribute
+        ]
+        for pat in patterns:
+            m = re.search(pat, text, re.IGNORECASE | re.DOTALL)
+            if m:
+                val = float(m.group(1).replace(',', '.'))
+                if 0 < val < 5:            # sanity: TER between 0 % and 5 %
+                    return round(val, 4)
+    except Exception:
+        pass
+    return None
+
+
+def _fetch_ter_full(ticker: str, isin: str = "") -> float | None:
+    """Try Yahoo Finance first, then justETF as fallback."""
+    ter = _fetch_ter_yf(ticker)
+    if ter is None and isin:
+        ter = _fetch_ter_justetf(isin)
+    return ter
 
 @app.post("/api/portfolio/analyze")
 def analyze_portfolio(req: PortfolioRequest, _: str = Depends(get_current_user)):
@@ -521,13 +756,39 @@ def analyze_portfolio(req: PortfolioRequest, _: str = Depends(get_current_user))
         if k != "N/D"
     }
 
+    # Underlying currency exposure: maps geography → real currency weights for ETFs;
+    # for individual stocks/bonds uses the trading currency directly.
+    undl_agg: dict[str, float] = {}
+    for h in req.holdings:
+        geo = h.geography or {}
+        if h.category in _DIRECT_CURRENCY_CATEGORIES or not geo:
+            cur = (h.currency or "N/D").upper()
+            if cur != "N/D":
+                undl_agg[cur] = undl_agg.get(cur, 0) + h.allocation
+        else:
+            geo_total = sum(geo.values()) or 1
+            for region, region_pct in geo.items():
+                region_alloc = (region_pct / geo_total) * h.allocation
+                cur_map = GEO_TO_CURRENCY.get(region, {"USD": 50, "EUR": 30, "_altri": 20})
+                cur_total = sum(v for v in cur_map.values()) or 1
+                for cur, cur_pct in cur_map.items():
+                    if cur != "_altri":
+                        undl_agg[cur] = undl_agg.get(cur, 0) + (cur_pct / cur_total) * region_alloc
+    if req.liquidita > 0:
+        undl_agg["EUR"] = undl_agg.get("EUR", 0) + req.liquidita
+    underlying_currency_exposure = {
+        k: round(v / total * 100, 1)
+        for k, v in sorted(undl_agg.items(), key=lambda x: -x[1])
+        if v / total * 100 >= 0.5
+    }
+
     # Heuristic metrics using ETF sub-types
     equity_pct = (
         cat_pct.get("Azioni", 0)
         + cat_pct.get("ETF Azionario", 0)
         + cat_pct.get("ETF", 0)
     ) / 100
-    bond_pct = cat_pct.get("ETF Obbligazionario", 0) / 100
+    bond_pct = (cat_pct.get("ETF Obbligazionario", 0) + cat_pct.get("Obbligazioni", 0)) / 100
     crypto_pct = cat_pct.get("Criptovalute", 0) / 100
     cash_pct = cat_pct.get("Liquidità", 0) / 100
 
@@ -552,31 +813,38 @@ def analyze_portfolio(req: PortfolioRequest, _: str = Depends(get_current_user))
     else:
         aggressiveness = "Aggressivo"
 
-    etf_no_ter = [(h, h.yf_ticker or h.ticker) for h in req.holdings
-                  if h.ter is None and h.category in _ETF_CATEGORIES and (h.yf_ticker or h.ticker)]
+    etf_no_ter = [
+        (h, h.yf_ticker or h.ticker, h.isin or "")
+        for h in req.holdings
+        if h.ter is None and h.category in _ETF_CATEGORIES and (h.yf_ticker or h.ticker)
+    ]
     if etf_no_ter:
         with ThreadPoolExecutor(max_workers=min(4, len(etf_no_ter))) as ex:
-            futures = {ex.submit(_fetch_ter_yf, t): h for h, t in etf_no_ter}
+            futures = {ex.submit(_fetch_ter_full, t, isin): h for h, t, isin in etf_no_ter}
             try:
-                for fut in as_completed(futures, timeout=2.0):
+                for fut in as_completed(futures, timeout=12.0):
                     val = fut.result()
                     if val:
                         futures[fut].ter = val
             except _FutTimeout:
                 pass
 
-    ter_holdings = [h for h in req.holdings if h.ter and h.ter > 0]
+    ter_holdings = [h for h in req.holdings if h.ter and 0 < h.ter <= 5]
     if ter_holdings:
         ter_alloc = sum(h.allocation for h in ter_holdings)
         ter_medio = round(sum(h.ter * h.allocation for h in ter_holdings) / ter_alloc, 4) if ter_alloc else None
     else:
         ter_medio = None
 
+    ter_map = {h.ticker: h.ter for h in req.holdings if h.ter and 0 < h.ter <= 5}
+
     return {
         "total": total,
         "category_pct": cat_pct,
         "geography": geo_agg,
         "currency_exposure": currency_exposure,
+        "underlying_currency_exposure": underlying_currency_exposure,
+        "ter_map": ter_map,
         "metrics": {
             "expected_return": f"{expected_return_low}% – {expected_return_high}%",
             "volatility": f"{volatility_low}% – {volatility_high}%",
@@ -598,19 +866,12 @@ class ExtractedInstrument(BaseModel):
     purchase_price: Optional[float] = None   # prezzo medio di acquisto per unità in EUR
     value: Optional[float] = None            # controvalore corrente in EUR
     purchase_date: Optional[str] = None      # data acquisto YYYY-MM-DD
+    coupon: Optional[float] = None           # cedola annua % (solo obbligazioni)
+    maturity: Optional[str] = None           # data scadenza YYYY-MM-DD (solo obbligazioni)
 
 
 class ExtractionResponse(BaseModel):
     items: List[ExtractedInstrument]
-
-
-def _extract_pdf_text(content: bytes) -> str:
-    try:
-        reader = pypdf.PdfReader(io.BytesIO(content))
-        pages = [page.extract_text() or "" for page in reader.pages]
-        return "\n".join(pages)
-    except Exception as e:
-        return f"[Errore lettura PDF: {e}]"
 
 
 @app.post("/api/extract-from-documents", response_model=ExtractionResponse)
@@ -622,43 +883,64 @@ async def extract_from_documents(
     if not api_key:
         raise HTTPException(400, "ANTHROPIC_API_KEY non configurata nel file .env")
 
-    combined_text = ""
+    content_blocks: list = []
     for f in files:
         raw = await f.read()
+        if not raw:
+            continue
         name = (f.filename or "").lower()
         if name.endswith(".pdf"):
-            text = _extract_pdf_text(raw)
+            content_blocks.append({
+                "type": "document",
+                "source": {
+                    "type": "base64",
+                    "media_type": "application/pdf",
+                    "data": base64.standard_b64encode(raw).decode(),
+                },
+                "title": f.filename,
+            })
         else:
             text = raw.decode("utf-8", errors="ignore")
-        combined_text += f"\n\n=== DOCUMENTO: {f.filename} ===\n{text}"
+            content_blocks.append({
+                "type": "text",
+                "text": f"\n=== DOCUMENTO: {f.filename} ===\n{text[:16000]}",
+            })
 
-    if not combined_text.strip():
-        raise HTTPException(400, "Impossibile estrarre testo dai documenti caricati")
+    if not content_blocks:
+        raise HTTPException(400, "Impossibile estrarre contenuto dai documenti caricati")
 
-    prompt = (
-        "Analizza questi documenti bancari/finanziari ed estrai tutti gli strumenti finanziari "
-        "(azioni, ETF, fondi, obbligazioni). "
-        "Per ogni strumento restituisci un oggetto JSON con:\n"
-        "- isin: codice ISIN (12 caratteri, es. IE00B3RBWM25) se presente, altrimenti stringa vuota\n"
-        "- ticker: simbolo ticker (es. MSFT) se presente, altrimenti stringa vuota\n"
-        "- name: nome completo dello strumento\n"
-        "- quantity: numero di titoli/quote posseduti (numero con decimali, null se assente)\n"
-        "- purchase_price: prezzo medio di acquisto per singola unità in EUR (numero, null se assente)\n"
-        "- value: controvalore corrente in EUR (numero, null se assente)\n"
-        "- purchase_date: data di acquisto nel formato YYYY-MM-DD (stringa, null se assente)\n\n"
-        "Escludi: conti correnti, depositi bancari, liquidità/cash.\n"
-        "Rispondi SOLO con JSON valido, nessun testo aggiuntivo:\n"
-        '{"items": [{"isin": "...", "ticker": "...", "name": "...", "quantity": 10.5, '
-        '"purchase_price": 45.20, "value": 3500.00, "purchase_date": "2023-04-15"}]}\n\n'
-        f"DOCUMENTI:\n{combined_text[:18000]}"
-    )
+    content_blocks.append({
+        "type": "text",
+        "text": (
+            "Analizza questi documenti bancari/finanziari ed estrai tutti gli strumenti finanziari "
+            "(azioni, ETF, fondi, obbligazioni, criptovalute). "
+            "Per ogni strumento restituisci un oggetto JSON con:\n"
+            "- isin: codice ISIN (12 caratteri, es. IE00B3RBWM25) se presente, altrimenti stringa vuota\n"
+            "- ticker: simbolo ticker o codice cripto (es. BTC, ETH, MSFT) se presente, altrimenti stringa vuota\n"
+            "- name: nome completo dello strumento\n"
+            "- quantity: numero di titoli/quote/unità posseduti (numero con decimali, null se assente)\n"
+            "- purchase_price: prezzo medio di acquisto per singola unità in EUR "
+            "(null se il documento mostra solo il prezzo corrente e non quello di acquisto)\n"
+            "- value: controvalore corrente in EUR (numero, null se assente)\n"
+            "- purchase_date: data di acquisto nel formato YYYY-MM-DD (null se assente)\n"
+            "- coupon: SOLO per obbligazioni, cedola annua in % (numero, es. 3.25; null altrimenti)\n"
+            "- maturity: SOLO per obbligazioni, data di scadenza YYYY-MM-DD (null altrimenti)\n\n"
+            "Includi le criptovalute (Bitcoin, Ethereum, ecc.).\n"
+            "Per le obbligazioni (BTP, Bund, Treasury, corporate) compila coupon e maturity se presenti.\n"
+            "Escludi: conti correnti, depositi bancari, liquidità/cash.\n"
+            "Rispondi SOLO con JSON valido, nessun testo aggiuntivo:\n"
+            '{"items": [{"isin": "IE00B3RBWM25", "ticker": "", "name": "iShares Core MSCI World", '
+            '"quantity": 10.5, "purchase_price": null, "value": 3500.00, "purchase_date": null, '
+            '"coupon": null, "maturity": null}]}'
+        ),
+    })
 
     model = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-6")
     client = anthropic.Anthropic(api_key=api_key)
     response = client.messages.create(
         model=model,
         max_tokens=4096,
-        messages=[{"role": "user", "content": prompt}],
+        messages=[{"role": "user", "content": content_blocks}],
     )
 
     raw_text = response.content[0].text.strip()
@@ -695,19 +977,25 @@ class PLRequest(BaseModel):
 @app.post("/api/portfolio/pl")
 def get_portfolio_pl(req: PLRequest, _: str = Depends(get_current_user)):
     results = []
-    to_fetch = [(h, h.get("yf_ticker") or h.get("ticker")) for h in req.holdings
-                if h.get("quantity") and (h.get("yf_ticker") or h.get("ticker"))]
+    to_fetch = [(h, h.get("yf_ticker") or h.get("ticker") or h.get("isin")) for h in req.holdings
+                if h.get("quantity") and (h.get("yf_ticker") or h.get("ticker") or h.get("isin"))]
 
     def _fetch(h, yf_t):
         try:
-            fi = yf.Ticker(yf_t).fast_info
-            price = getattr(fi, "last_price", None)
+            # Bonds: quantity is the nominal, price is % of nominal (Borsa Italiana).
+            is_bond = h.get("category") == "Obbligazioni" and h.get("isin")
+            if is_bond:
+                quote = fetch_bond_quote(h["isin"])
+                price = quote.price if quote else None
+            else:
+                price = getattr(yf.Ticker(yf_t).fast_info, "last_price", None)
             if price is None:
                 return None
             qty = float(h["quantity"])
             buy = float(h["purchase_price"]) if h.get("purchase_price") else None
-            cur_val = round(qty * price, 2)
-            cost = round(qty * buy, 2) if buy else None
+            unit = 0.01 if is_bond else 1.0
+            cur_val = round(qty * price * unit, 2)
+            cost = round(qty * buy * unit, 2) if buy else None
             pl_eur = round(cur_val - cost, 2) if cost is not None else None
             pl_pct = round(pl_eur / cost * 100, 2) if cost else None
             return {
@@ -746,6 +1034,49 @@ def get_portfolio_pl(req: PLRequest, _: str = Depends(get_current_user)):
         "total_pl_eur": total_pl,
         "total_pl_pct": total_pl_pct,
     }
+
+
+# ─── Superinvestors (Dataroma, 13F) ──────────────────────────────────────────
+
+class OverlapRequest(BaseModel):
+    symbols: List[str]
+
+
+@app.get("/api/superinvestors", response_model=List[Manager])
+def superinvestors_list(_: str = Depends(get_current_user)) -> List[Manager]:
+    managers = list_managers()
+    if not managers:
+        raise HTTPException(502, "Dataroma non raggiungibile")
+    return managers
+
+
+@app.get("/api/superinvestors/consensus", response_model=List[ConsensusStock])
+def superinvestors_consensus(
+    limit: int = Query(50, ge=1, le=100),
+    _: str = Depends(get_current_user),
+) -> List[ConsensusStock]:
+    stocks = fetch_consensus(limit)
+    if not stocks:
+        raise HTTPException(502, "Dataroma non raggiungibile")
+    return stocks
+
+
+@app.post("/api/superinvestors/overlap", response_model=List[StockOwnership])
+def superinvestors_overlap(
+    req: OverlapRequest, _: str = Depends(get_current_user),
+) -> List[StockOwnership]:
+    """Which superinvestors own the stocks in the user's portfolio."""
+    return fetch_portfolio_overlap(req.symbols[:40])
+
+
+@app.get("/api/superinvestors/{code}", response_model=ManagerPortfolio)
+def superinvestor_portfolio(code: str, _: str = Depends(get_current_user)) -> ManagerPortfolio:
+    if not re.match(r"^[A-Za-z0-9.]{1,12}$", code):
+        raise HTTPException(400, "Codice gestore non valido")
+    portfolio = fetch_manager_portfolio(code)
+    if portfolio is None:
+        raise HTTPException(404, f"Gestore {code} non trovato su Dataroma")
+    return portfolio
 
 
 @app.post("/api/portfolio/save")
@@ -792,19 +1123,29 @@ def portfolio_performance(req: PerformanceRequest, _: str = Depends(get_current_
     import pandas as pd
 
     series_list = []
+    covered_amount = 0.0
+    failed_tickers: list[str] = []
+    total_submitted = sum(h.amount for h in req.holdings if h.amount and h.amount > 0)
+
     for h in req.holdings:
         if not h.amount or h.amount <= 0 or not h.yf_ticker:
             continue
         try:
             hist = yf.Ticker(h.yf_ticker).history(period="1y")["Close"]
             if hist.empty or len(hist) < 5:
+                failed_tickers.append(h.yf_ticker)
                 continue
-            series_list.append(hist / hist.iloc[0] * h.amount)
+            series_list.append(hist / hist.iloc[-1] * h.amount)
+            covered_amount += h.amount
         except Exception:
+            failed_tickers.append(h.yf_ticker)
             continue
 
+    covered_pct = round(covered_amount / total_submitted * 100, 1) if total_submitted > 0 else 100.0
+
     if not series_list:
-        return {"dates": [], "values": [], "return_pct": 0, "initial_value": 0, "current_value": 0}
+        return {"dates": [], "values": [], "return_pct": 0, "initial_value": 0, "current_value": 0,
+                "covered_pct": covered_pct, "failed_tickers": failed_tickers}
 
     combined = pd.concat(series_list, axis=1).ffill().bfill().sum(axis=1) + req.liquidita
     initial  = float(combined.iloc[0])
@@ -812,12 +1153,35 @@ def portfolio_performance(req: PerformanceRequest, _: str = Depends(get_current_
     return_pct = round((current / initial - 1) * 100, 2) if initial > 0 else 0
 
     return {
-        "dates":         [str(d.date()) for d in combined.index],
-        "values":        [round(float(v), 2) for v in combined.values],
-        "return_pct":    return_pct,
-        "initial_value": round(initial, 2),
-        "current_value": round(current, 2),
+        "dates":          [str(d.date()) for d in combined.index],
+        "values":         [round(float(v), 2) for v in combined.values],
+        "return_pct":     return_pct,
+        "initial_value":  round(initial, 2),
+        "current_value":  round(current, 2),
+        "covered_pct":    covered_pct,
+        "failed_tickers": failed_tickers,
     }
+
+
+# ─── Deep analysis (page /analisi) ────────────────────────────────────────────
+
+@app.post("/api/analysis/deep", response_model=DeepAnalysisResponse)
+def deep_analysis(req: DeepAnalysisRequest, _: str = Depends(get_current_user)) -> DeepAnalysisResponse:
+    """Since-purchase performance, attribution, risk, frontier, Monte Carlo."""
+    if not req.holdings:
+        raise HTTPException(400, "Portafoglio vuoto")
+    try:
+        return run_deep_analysis(req)
+    except InsufficientDataError as e:
+        raise HTTPException(422, str(e))
+
+
+@app.post("/api/analysis/look-through", response_model=LookThroughResponse)
+def look_through(req: DeepAnalysisRequest, _: str = Depends(get_current_user)) -> LookThroughResponse:
+    """X-Ray: asset classes, sectors, underlying positions, overlap, bonds, costs."""
+    if not req.holdings:
+        raise HTTPException(400, "Portafoglio vuoto")
+    return run_look_through(req)
 
 
 # AWS Lambda entry point via Mangum ASGI adapter

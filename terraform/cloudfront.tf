@@ -11,7 +11,7 @@ resource "aws_cloudfront_origin_access_control" "frontend" {
   signing_protocol                  = "sigv4"
 }
 
-# CloudFront Function: rewrite /login → /login.html (no .html in browser)
+# CloudFront Function: rewrite /login, /analisi → *.html (no .html in browser)
 resource "aws_cloudfront_function" "url_rewrite" {
   name    = "${var.app_name}-url-rewrite"
   runtime = "cloudfront-js-2.0"
@@ -21,6 +21,7 @@ resource "aws_cloudfront_function" "url_rewrite" {
     function handler(event) {
       var req = event.request;
       if (req.uri === '/login') { req.uri = '/login.html'; }
+      if (req.uri === '/analisi') { req.uri = '/analisi.html'; }
       return req;
     }
   EOT

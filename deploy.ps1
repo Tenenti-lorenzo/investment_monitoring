@@ -113,6 +113,7 @@ function Invoke-UploadStatic {
     if ($LASTEXITCODE -ne 0) { throw "s3 sync fallito" }
     aws s3 cp frontend/index.html "s3://$bucket/index.html"
     aws s3 cp frontend/login.html "s3://$bucket/login.html"
+    aws s3 cp frontend/analisi.html "s3://$bucket/analisi.html"
     Write-Host "    File caricati su s3://$bucket"
 }
 
@@ -139,7 +140,10 @@ switch ($Command) {
     }
 
     "image-push" {
-        $url = Invoke-ImagePush
+        # NB: non catturare Invoke-ImagePush in una variabile — l'output di docker
+        # finirebbe nel valore di ritorno. L'URL ECR si rilegge pulito da Terraform.
+        Invoke-ImagePush
+        $url = Assert-TfOutput "ecr_repository_url" ""
         Invoke-LambdaUpdate $url
     }
 
@@ -195,7 +199,8 @@ switch ($Command) {
         Invoke-TfApply "aws_ecr_repository.app"
 
         # Step 2: build e push Docker image
-        $ecrUrl = Invoke-ImagePush
+        # (non catturare in variabile: l'output di docker inquinerebbe il ritorno)
+        Invoke-ImagePush
 
         # Step 3: deploy tutta l'infrastruttura
         Write-Host ""
@@ -222,7 +227,10 @@ switch ($Command) {
     "deploy" {
         Write-Host ""
         Write-Host "==> Aggiornamento in corso..." -ForegroundColor Cyan
-        $ecrUrl = Invoke-ImagePush
+        # NB: non catturare Invoke-ImagePush (l'output di docker inquinerebbe il
+        # valore di ritorno); l'URL ECR si rilegge pulito da Terraform.
+        Invoke-ImagePush
+        $ecrUrl = Assert-TfOutput "ecr_repository_url" ""
         Invoke-LambdaUpdate $ecrUrl
         Invoke-UploadStatic
         $cfUrl = Get-TfOutput "cloudfront_url"

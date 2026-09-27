@@ -34,6 +34,13 @@ variable "anthropic_model" {
   default     = "claude-sonnet-4-6"
 }
 
+variable "fred_api_key" {
+  description = "FRED API key for live sovereign-bond yields (free: fred.stlouisfed.org/docs/api/api_key.html). Leave empty to disable sovereign risk."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
 variable "app_url" {
   description = <<-EOT
     Public base URL (CloudFront domain). Leave empty on first deploy.
