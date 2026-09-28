@@ -81,6 +81,33 @@ def test_protected_when_no_token_then_rejected(client):
 def test_protected_when_invalid_expired_or_forged_token_then_401(client, token):
     res = client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"})
     assert res.status_code == 401
+    assert main.REFRESH_HEADER not in res.headers
+
+
+def _exp(token: str) -> datetime:
+    return datetime.fromtimestamp(jwt.decode(token, main.SECRET_KEY, algorithms=["HS256"])["exp"], UTC)
+
+
+def test_create_token_when_issued_then_expires_in_30_minutes():
+    left = _exp(main._create_token("mario")) - datetime.now(UTC)
+    assert timedelta(minutes=29) < left <= timedelta(minutes=30)
+
+
+def test_protected_when_token_valid_then_fresh_30_minute_token_returned(client, fake_db):
+    register(client)
+    old = jwt.encode({"sub": "mario", "exp": datetime.now(UTC) + timedelta(minutes=2)}, main.SECRET_KEY)
+    res = client.get("/api/auth/me", headers={"Authorization": f"Bearer {old}"})
+    fresh = res.headers[main.REFRESH_HEADER]
+    assert res.status_code == 200
+    assert jwt.decode(fresh, main.SECRET_KEY, algorithms=["HS256"])["sub"] == "mario"
+    assert _exp(fresh) - datetime.now(UTC) > timedelta(minutes=29)  # sliding: activity extends it
+
+
+def test_protected_when_idle_more_than_30_minutes_then_401(client, fake_db):
+    register(client)
+    issued_31_min_ago = datetime.now(UTC) - timedelta(minutes=31)
+    stale = jwt.encode({"sub": "mario", "exp": issued_31_min_ago + timedelta(minutes=30)}, main.SECRET_KEY)
+    assert client.get("/api/auth/me", headers={"Authorization": f"Bearer {stale}"}).status_code == 401
 
 
 # ─── Password reset ───────────────────────────────────────────────────────────

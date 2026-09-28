@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Query, File, UploadFile, Depends
+from fastapi import FastAPI, HTTPException, Query, File, UploadFile, Depends, Response
 from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as _FutTimeout
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from typing import Optional, List
 import yfinance as yf
 import requests
+import math
 import re
 import os
 import io
@@ -69,7 +70,10 @@ from backend.database import (
 )
 
 SECRET_KEY = os.getenv("SECRET_KEY", "change-me-in-production-use-a-long-random-string")
-TOKEN_EXPIRE_HOURS = 24 * 7  # 7 days
+# Sliding session: every authenticated call returns a fresh token in REFRESH_HEADER,
+# so the session only expires after this many minutes of inactivity.
+TOKEN_EXPIRE_MINUTES = 30
+REFRESH_HEADER = "X-Refreshed-Token"
 
 _http_bearer = HTTPBearer()
 
@@ -82,6 +86,7 @@ app.add_middleware(
     allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=[REFRESH_HEADER],
 )
 
 frontend_path = Path(__file__).parent.parent / "frontend"
@@ -110,20 +115,22 @@ def _verify_pw(plain: str, hashed: str) -> bool:
     return _bcrypt_lib.checkpw(plain.encode()[:72], hashed.encode())
 
 def _create_token(username: str) -> str:
-    exp = datetime.now(timezone.utc) + timedelta(hours=TOKEN_EXPIRE_HOURS)
+    exp = datetime.now(timezone.utc) + timedelta(minutes=TOKEN_EXPIRE_MINUTES)
     return jwt.encode({"sub": username, "exp": exp}, SECRET_KEY, algorithm="HS256")
 
 def get_current_user(
+    response: Response,
     credentials: HTTPAuthorizationCredentials = Depends(_http_bearer),
 ) -> str:
     try:
         payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=["HS256"])
-        username: str = payload.get("sub", "")
-        if not username:
-            raise HTTPException(401, "Token non valido")
-        return username
     except JWTError:
         raise HTTPException(401, "Sessione scaduta, effettua di nuovo il login")
+    username: str = payload.get("sub", "")
+    if not username:
+        raise HTTPException(401, "Token non valido")
+    response.headers[REFRESH_HEADER] = _create_token(username)
+    return username
 
 
 # ─── Auth models ─────────────────────────────────────────────────────────────
@@ -585,16 +592,9 @@ def search_asset(
     ter = _ter_from_info(info)
     if ter is None:
         try:
-            fd = ticker_obj.funds_data
-            fo = getattr(fd, "fund_overview", None) or {}
-            if isinstance(fo, dict):
-                raw_fd = fo.get("expenseRatio") or fo.get("annualReportExpenseRatio")
-                if raw_fd:
-                    val = float(raw_fd)
-                    result = round(val * 100, 4) if val <= 1 else round(val, 4)
-                    ter = result if 0 < result <= 5 else None
+            ter = _ter_from_funds_data(ticker_obj.funds_data)
         except Exception:
-            pass
+            ter = None
     if ter is None and is_isin:
         ter = _fetch_ter_justetf(q)
 
@@ -642,38 +642,62 @@ class PortfolioRequest(BaseModel):
 
 _ETF_CATEGORIES = {"ETF Azionario", "ETF Obbligazionario", "ETF Bilanciato", "ETF Materie Prime", "ETF"}
 
+_TER_MAX_PCT = 5.0  # no real ETF/fund costs more than this: anything above is a unit error
+
+
+def valid_ter(ter: float | None) -> float | None:
+    """TER in percent if plausible (0 < TER <= 5), else None."""
+    if ter is None:
+        return None
+    try:
+        val = float(ter)
+    except (TypeError, ValueError):
+        return None
+    return round(val, 4) if math.isfinite(val) and 0 < val <= _TER_MAX_PCT else None
+
+
 def _ter_from_info(info: dict) -> float | None:
+    """TER (%) from ``yf.Ticker.info``.
+
+    Yahoo uses different units per field: ``netExpenseRatio`` is already a
+    percentage (0.2 = 0.20 %), while the legacy ``annualReportExpenseRatio`` /
+    ``expenseRatio`` / ``totalExpenseRatio`` are fractions (0.002 = 0.20 %).
+    Guessing the unit from the magnitude turned 0.2 % into 20 %.
+    """
+    net = info.get("netExpenseRatio")
+    if net:
+        return valid_ter(net)
     raw = (info.get("annualReportExpenseRatio")
            or info.get("expenseRatio")
-           or info.get("netExpenseRatio")
            or info.get("totalExpenseRatio"))
-    if not raw:
-        return None
-    val = float(raw)
-    # yfinance returns decimals (0.002 = 0.2%); if > 1 it's already a percentage
-    result = round(val * 100, 4) if val <= 1 else round(val, 4)
-    return result if 0 < result <= 5 else None
+    return valid_ter(float(raw) * 100) if raw else None
+
+
+def _ter_from_funds_data(fd) -> float | None:
+    """TER (%) from ``yf.Ticker.funds_data``: both sources are fractions (0.002 = 0.20 %)."""
+    try:
+        raw = fd.fund_operations.iloc[:, 0].get("Annual Report Expense Ratio")
+        ter = valid_ter(float(raw) * 100) if raw is not None else None
+        if ter is not None:
+            return ter
+    except Exception:
+        pass
+    try:
+        fo = getattr(fd, "fund_overview", None) or {}
+        if isinstance(fo, dict):
+            raw = fo.get("expenseRatio") or fo.get("annualReportExpenseRatio")
+            return valid_ter(float(raw) * 100) if raw else None
+    except Exception:
+        pass
+    return None
+
 
 def _fetch_ter_yf(ticker: str) -> float | None:
     try:
         t = yf.Ticker(ticker)
-        ter = _ter_from_info(t.info or {})
-        if ter is not None:
-            return ter
-        try:
-            fd = t.funds_data
-            fo = getattr(fd, "fund_overview", None) or {}
-            if isinstance(fo, dict):
-                raw = fo.get("expenseRatio") or fo.get("annualReportExpenseRatio")
-                if raw:
-                    val = float(raw)
-                    result = round(val * 100, 4) if val <= 1 else round(val, 4)
-                    return result if 0 < result <= 5 else None
-        except Exception:
-            pass
+        return _ter_from_info(t.info or {}) or _ter_from_funds_data(t.funds_data)
     except Exception:
-        pass
-    return None
+        return None
 
 
 def _fetch_ter_justetf(isin: str) -> float | None:
@@ -813,6 +837,10 @@ def analyze_portfolio(req: PortfolioRequest, _: str = Depends(get_current_user))
     else:
         aggressiveness = "Aggressivo"
 
+    # Saved portfolios may carry TERs from an older ×100 unit bug (e.g. 20.0 for 0.20 %):
+    # drop anything implausible and fetch it again.
+    for h in req.holdings:
+        h.ter = valid_ter(h.ter)
     etf_no_ter = [
         (h, h.yf_ticker or h.ticker, h.isin or "")
         for h in req.holdings

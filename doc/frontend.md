@@ -14,6 +14,7 @@ build step. Grafici con **Chart.js 4.4** (CDN jsdelivr).
 | `frontend/analisi.html` | Pagina **Analisi approfondita** (`/analisi`) |
 | `static/js/app.js` (~1500 righe) | Logica della dashboard |
 | `static/js/superinvestors.js` | Sezione "Superinvestitori" della dashboard (usa `API`, `apiFetch`, `portfolio` di `app.js`) |
+| `static/js/session.js` | Sessione condivisa da tutte le pagine (`window.Session`): `apiFetch` con Bearer + salvataggio del token rinnovato (`X-Refreshed-Token`), `guard()` che fa logout dopo 30 min di inattività e rinnova il token sull'attività utente, `valid()` usato da `login.html` |
 | `static/js/analisi.js` | Pagina analisi: sorgenti dati, chiamate API, KPI, tabelle, heatmap, barre HTML |
 | `static/js/analisi-charts.js` | Pagina analisi: renderer Chart.js (espone `window.AnCharts`) |
 | `static/css/style.css` | Stile comune (tema scuro) |
@@ -31,7 +32,7 @@ Lo stato vive nel browser (variabili di modulo + `localStorage`). Il backend e' 
 | `inputMode` | `app.js` | `'pct'` (allocazioni %) o `'amount'` (importi EUR) |
 | `lastSearchData` | `app.js` | ultimo risultato di `/api/search` |
 | `allocationChart`, `geoChart`, `perfChart` | `app.js` | istanze Chart.js |
-| `localStorage.auth_token`, `auth_username` | tutte le pagine | sessione JWT |
+| `localStorage.auth_token`, `auth_username` | `session.js` | sessione JWT (30 min scorrevoli) |
 | `localStorage.analysis_portfolio` | `app.js` → `analisi.js` | snapshot del portafoglio corrente passato alla pagina analisi `{name, holdings, liquidita, inputMode, savedAt}` |
 
 ## Dashboard (`index.html` + `app.js`)

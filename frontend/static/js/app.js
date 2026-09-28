@@ -5,22 +5,8 @@
 const API = '';
 
 // ── Auth helpers ─────────────────────────────
-function _authToken() { return localStorage.getItem('auth_token') || ''; }
-
-async function apiFetch(url, opts = {}) {
-  opts.headers = {
-    ...(opts.headers || {}),
-    'Authorization': `Bearer ${_authToken()}`,
-  };
-  const res = await fetch(url, opts);
-  if (res.status === 401) {
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('auth_username');
-    window.location.href = '/login';
-    throw new Error('Sessione scaduta');
-  }
-  return res;
-}
+// Session handling (token refresh, 30-minute inactivity expiry) lives in session.js.
+const apiFetch = (url, opts) => Session.apiFetch(url, opts);
 
 const CAT_COLORS = {
   'ETF Azionario':       '#8b5cf6',
@@ -467,9 +453,10 @@ analyzeBtn.addEventListener('click', async () => {
     if (!res.ok) throw new Error('Errore analisi');
     const data = await res.json();
     const terMap = data.ter_map || {};
-    const enrichedHoldings = body.holdings.map(h =>
-      terMap[h.ticker] != null ? { ...h, ter: terMap[h.ticker] } : h
-    );
+    // Backend TERs win; implausible stored values (> 5 %, legacy unit bug) are dropped.
+    const fixTer = h => (terMap[h.ticker] != null ? terMap[h.ticker] : (h.ter > 0 && h.ter <= 5 ? h.ter : null));
+    const enrichedHoldings = body.holdings.map(h => ({ ...h, ter: fixTer(h) }));
+    portfolio.forEach(h => { h.ter = fixTer(h); });  // persisted on the next "Salva"
     renderDashboard(data, enrichedHoldings, liquiditaPct, liqVal);
     dashboard.classList.remove('hidden');
     document.getElementById('portfolioSummaryCard').classList.remove('hidden');
@@ -674,7 +661,7 @@ function renderMetriche(m) {
   const terBox   = `
     <div class="metrica-box">
       <div class="metrica-icon">💸</div>
-      <div class="metrica-label">TER Medio ponderato</div>
+      <div class="metrica-label">TER medio ponderato (ETF)</div>
       <div class="metrica-val" style="color:${terColor}">${terVal}</div>
     </div>`;
   document.getElementById('metriche').innerHTML = `

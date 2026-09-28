@@ -71,6 +71,24 @@ def test_analyze_when_etf_without_ter_then_fetched_and_returned_in_map(client, a
     assert res["ter_map"] == {"CSPX": 0.07} and res["metrics"]["ter_medio"] == 0.07
 
 
+def test_analyze_when_saved_ter_has_legacy_unit_error_then_refetched_and_corrected(
+    client, auth_headers, monkeypatch
+):
+    # Regression: an older version saved 0.20 % as 20.0 → dashboard showed "TER 20.00%"
+    # while the weighted average silently ignored it.
+    monkeypatch.setattr(main, "_fetch_ter_full", lambda ticker, isin="": 0.2)
+    body = {
+        "holdings": [
+            h("EUNK", "ETF Azionario", 50, yf_ticker="EUNK.DE", ter=20.0),
+            h("VWCE", "ETF Azionario", 50, yf_ticker="VWCE.DE", ter=0.19),
+        ],
+        "liquidita": 0,
+    }
+    res = client.post("/api/portfolio/analyze", json=body, headers=auth_headers).json()
+    assert res["ter_map"] == {"EUNK": 0.2, "VWCE": 0.19}
+    assert res["metrics"]["ter_medio"] == pytest.approx(0.195)
+
+
 def test_analyze_when_empty_then_400(client, auth_headers):
     res = client.post("/api/portfolio/analyze", json={"holdings": [], "liquidita": 0}, headers=auth_headers)
     assert res.status_code == 400

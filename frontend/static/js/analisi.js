@@ -17,17 +17,7 @@
   const sEur = v => signed(v, x => eur(x));
 
   // ── API ───────────────────────────────────────
-  async function apiFetch(url, opts = {}) {
-    const token = localStorage.getItem('auth_token') || '';
-    const res = await fetch(url, { ...opts, headers: { ...(opts.headers || {}), Authorization: `Bearer ${token}` } });
-    if (res.status === 401) {
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('auth_username');
-      window.location.href = '/login';
-      throw new Error('Sessione scaduta');
-    }
-    return res;
-  }
+  const apiFetch = (url, opts) => Session.apiFetch(url, opts);
   async function postJson(url, body) {
     const res = await apiFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || `HTTP ${res.status}`);

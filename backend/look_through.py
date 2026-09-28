@@ -365,7 +365,8 @@ def run_look_through(req: DeepAnalysisRequest) -> LookThroughResponse:
     bonds, duration, credit = _bonds(holdings, profiles, values, total)
     costs = []
     for h, p, v in zip(holdings, profiles, values, strict=True):
-        ter = h.ter if h.ter is not None else p.ter
+        # a stored TER above 5 % is a legacy unit error (0.20 % saved as 20): use Yahoo's instead
+        ter = h.ter if h.ter is not None and 0 < h.ter <= 5 else p.ter
         costs.append(
             CostDetail(
                 ticker=h.ticker,

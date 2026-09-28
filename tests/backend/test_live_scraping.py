@@ -59,3 +59,10 @@ def test_live_yahoo_prices_converted_to_eur():
     ph = fetch_price_history({"SWDA.MI": "EUR", "MSFT": "USD"}, date.today() - timedelta(days=30))
     assert {"SWDA.MI", "MSFT"} <= set(ph.eur.columns)
     assert (ph.fx["MSFT"] > 0.5).all()
+
+
+@pytest.mark.parametrize("ticker,low,high", [("EUNK.DE", 0.05, 0.5), ("SPY", 0.05, 0.2), ("CSPX.L", 0.03, 0.2)])
+def test_live_yahoo_ter_units_then_plausible_percent(ticker, low, high):
+    # Guards the netExpenseRatio (percent) vs fund_operations (fraction) unit split.
+    ter = main._fetch_ter_yf(ticker)
+    assert ter is not None and low <= ter <= high

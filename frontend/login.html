@@ -161,9 +161,10 @@
     </div>
   </div>
 
+  <script src="/static/js/session.js"></script>
   <script>
     // If already authenticated, skip to app
-    if (localStorage.getItem('auth_token')) window.location.href = '/';
+    if (Session.valid()) window.location.href = '/';
 
     // Check for reset token in URL
     const _params     = new URLSearchParams(window.location.search);

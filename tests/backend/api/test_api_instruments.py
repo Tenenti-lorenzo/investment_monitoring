@@ -68,7 +68,7 @@ def test_search_when_etf_isin_then_resolved_classified_with_ter_and_composition(
             "quoteType": "ETF",
             "longName": "iShares Core MSCI World UCITS ETF",
             "category": "Global Large-Cap Blend Equity",
-            "netExpenseRatio": 0.002,
+            "netExpenseRatio": 0.2,  # Yahoo: already percent
             "regularMarketPrice": 110.5,
             "currency": "EUR",
         },

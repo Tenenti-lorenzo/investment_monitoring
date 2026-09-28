@@ -137,21 +137,18 @@
       </div>
     </div>
   </nav>
+  <script src="/static/js/session.js"></script>
   <script>
-    // Auth guard — runs before anything else
+    // Auth guard — runs before anything else (30-minute inactivity expiry)
     (function() {
-      if (!localStorage.getItem('auth_token')) window.location.href = '/login';
+      Session.guard();
       const u = localStorage.getItem('auth_username');
       if (u) document.addEventListener('DOMContentLoaded', () => {
         const el = document.getElementById('navUsername');
         if (el) el.textContent = '👤 ' + u;
       });
     })();
-    function doLogout() {
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('auth_username');
-      window.location.href = '/login';
-    }
+    function doLogout() { Session.logout(); }
   </script>
 
   <!-- ══════════ HERO ══════════ -->

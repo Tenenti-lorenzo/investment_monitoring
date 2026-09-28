@@ -124,22 +124,49 @@ def test_etf_geography_when_category_or_country_then_top_region(info, region):
 # ─── TER (Yahoo + justETF scraping) ───────────────────────────────────────────
 
 
+# Units observed on real Yahoo data (2026-09-28):
+#   info.netExpenseRatio            → already percent  (EUNK.DE 0.2, SPY 0.0945, 4COP.DE 0.65)
+#   funds_data.fund_operations TER  → fraction         (EUNK.DE 0.002, SPY 0.000945)
 @pytest.mark.parametrize(
     "info,expected",
     [
-        ({"netExpenseRatio": 0.002}, 0.2),  # Yahoo decimal → percent
-        ({"totalExpenseRatio": 0.0035}, 0.35),
+        ({"netExpenseRatio": 0.2}, 0.2),  # iShares Core MSCI Europe: 0.20 %, NOT 20 %
+        ({"netExpenseRatio": 0.65}, 0.65),  # Global X Copper Miners
+        ({"netExpenseRatio": 0.0945}, 0.0945),  # SPY
+        ({"netExpenseRatio": 0.03}, 0.03),  # VOO
+        ({"totalExpenseRatio": 0.0035}, 0.35),  # legacy fraction fields
+        ({"annualReportExpenseRatio": 0.002}, 0.2),
         ({"annualReportExpenseRatio": 0.07}, None),  # 7 % → rejected as bogus
+        ({"netExpenseRatio": 20}, None),
         ({}, None),
     ],
 )
-def test_ter_from_info_when_decimals_then_percent_within_sanity(info, expected):
+def test_ter_from_info_when_yahoo_units_per_field_then_percent(info, expected):
     assert main._ter_from_info(info) == expected
 
 
-def test_ter_from_info_when_already_percent_then_kept():
-    assert main._ter_from_info({"netExpenseRatio": 1.5}) == 1.5
-    assert main._ter_from_info({"netExpenseRatio": 7}) is None
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        (0.2, 0.2),
+        (5, 5.0),
+        (20, None),
+        (0, None),
+        (-1, None),
+        (None, None),
+        ("abc", None),
+        (float("nan"), None),
+    ],
+)
+def test_valid_ter_when_value_given_then_only_plausible_percentages(raw, expected):
+    assert main.valid_ter(raw) == expected
+
+
+def test_ter_from_funds_data_when_fund_operations_fraction_then_percent():
+    import pandas as pd
+
+    fd = FakeFundsData(fund_operations=pd.DataFrame({"X": [0.002]}, index=["Annual Report Expense Ratio"]))
+    assert main._ter_from_funds_data(fd) == 0.2
 
 
 def test_justetf_when_real_profile_page_then_ter_parsed(monkeypatch):

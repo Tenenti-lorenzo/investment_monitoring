@@ -241,7 +241,7 @@ In produzione queste pagine sono servite da S3/CloudFront ([Infrastruttura](infr
 | `_load_aws_secrets()` | env `SECRETS_ARN` | — (popola env) | usa boto3 Secrets Manager; no-op in locale |
 | `get_current_user(credentials)` | Bearer token | username (str) | decodifica JWT HS256; 401 se invalido/scaduto/senza `sub` |
 | `_hash_pw / _verify_pw` | password | hash bcrypt / bool | tronca a 72 byte (limite bcrypt) |
-| `_create_token(username)` | username | JWT (scade in 7 giorni) | claim `sub`, `exp` |
+| `_create_token(username)` | username | JWT (scade in 30 minuti; rinnovato a ogni chiamata autenticata via header `X-Refreshed-Token` → scadenza per inattività) | claim `sub`, `exp` |
 | `openfigi_items(isin)` | ISIN | righe OpenFIGI (o `[]`) | una sola chiamata, riusata da `isin_to_ticker` e `classify_bond` |
 | `isin_to_ticker(isin, items)` | ISIN | `{ticker, name, exchCode, securityType, ...}` o `{}` | preferisce borse EUR (Xetra/Milano/Parigi) e tipi fondo/ETP per domicili ETF UE |
 | `build_yf_ticker(ticker, exch)` | ticker, exchCode | ticker Yahoo (es. `IWVL.L`) | mappa exchCode→suffisso via `SUFFIX_MAP` |
@@ -250,8 +250,10 @@ In produzione queste pagine sono servite da S3/CloudFront ([Infrastruttura](infr
 | `get_etf_geography(info)` | info Yahoo | dict regione→% | euristica su category/country |
 | `get_etf_composition(info, ticker_obj)` | info, oggetto yfinance | top-10 holdings | da `funds_data.top_holdings` |
 | `_bond_search_response(isin, figi, bond)` | ISIN, dati OpenFIGI, `BondInfo` | payload `/search` per obbligazioni | prezzo Borsa Italiana + rischio sovrano |
-| `_ter_from_info(info)` | info Yahoo | TER % o None | normalizza decimale/percentuale, scarta valori fuori 0–5% |
-| `_fetch_ter_yf(ticker)` | ticker | TER % o None | Yahoo info + fund_overview |
+| `valid_ter(ter)` | valore | TER % o None | accetta solo 0 < TER ≤ 5%; oltre e' un errore di unita' |
+| `_ter_from_info(info)` | info Yahoo | TER % o None | **unita' per campo**: `netExpenseRatio` e' gia' in % (0.2 = 0,20%); `annualReportExpenseRatio`/`expenseRatio`/`totalExpenseRatio` sono frazioni |
+| `_ter_from_funds_data(fd)` | `funds_data` Yahoo | TER % o None | `fund_operations` "Annual Report Expense Ratio" e `fund_overview`, entrambi frazioni |
+| `_fetch_ter_yf(ticker)` | ticker | TER % o None | info, poi funds_data |
 | `_fetch_ter_justetf(isin)` | ISIN | TER % o None | scraping HTML justETF (fallback) |
 | `_fetch_ter_full(ticker, isin)` | ticker, isin | TER % o None | Yahoo poi justETF |
 
@@ -305,6 +307,9 @@ La Lambda ha timeout 30 s ([Infrastruttura](infrastruttura.md)): per questo `dee
 - **`import pandas` lazy** dentro `/portfolio/performance` (riduce il cold start quando l'endpoint non e' usato).
 - **`pypdf` e' dichiarato** nelle dipendenze ma l'estrazione PDF e' delegata a Claude (PDF inviato
   come blocco `document` base64); `pypdf` non e' importato.
+- **TER salvati con unita' errata**: una versione precedente salvava 0,20% come `20.0`. `/portfolio/analyze`
+  scarta i TER > 5% e li riscarica; `ter_map` sovrascrive i valori nel client (persistiti al successivo "Salva");
+  il look-through usa il TER Yahoo al posto di quelli implausibili.
 - **Cedola MOT**: la pagina MOT di Borsa Italiana non riporta cedola annua ne' frequenza, quindi
   per i BTP il rendimento a scadenza nel look-through non e' disponibile ([Analisi](analisi.md)).
 

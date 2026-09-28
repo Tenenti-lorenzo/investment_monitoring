@@ -246,6 +246,14 @@ def test_costs_when_ters_known_then_annual_weighted_and_10y(portfolio):
     assert stock.ter is None and stock.annual_cost is None
 
 
+def test_costs_when_stored_ter_implausible_then_yahoo_ter_used(portfolio):
+    portfolio.holdings[0].ter = 20.0  # legacy ×100 unit error for a 0.20 % ETF
+    res = lt.run_look_through(portfolio)
+    swda = next(c for c in res.costs if c.ticker == "SWDA")
+    assert swda.ter == pytest.approx(0.2)  # from fund_operations (fraction 0.002)
+    assert swda.annual_cost == pytest.approx(8.0)
+
+
 def test_currency_and_hedging_when_gbp_pence_and_hedged_name_then_normalised(portfolio):
     res = lt.run_look_through(portfolio)
     cur = {s.label: s.pct for s in res.currencies}
