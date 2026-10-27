@@ -3,48 +3,85 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Accedi – PortfolioLab</title>
+  <title>PortfolioLab – Analizza il tuo portafoglio</title>
+  <meta name="description" content="Analizza gratis il tuo portafoglio per ISIN o ticker: asset allocation, esposizione geografica e valutaria, look-through degli ETF, rischio e rendimenti dei titoli di Stato." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/static/css/style.css" />
   <script src="/static/js/theme.js"></script>
   <style>
-    body {
-      min-height: 100vh; display: flex; align-items: center;
-      justify-content: center; padding: 24px 16px;
+    /* ── Landing layout: product on the left, sticky auth card on the right ── */
+    .lp-layout {
+      display: grid; gap: 32px 40px; align-items: start;
+      grid-template-columns: minmax(0, 1fr) 400px;
+      grid-template-areas: "hero auth" "rest auth";
+      padding-top: 40px; padding-bottom: 56px;
     }
-    .auth-shell {
-      width: 100%; max-width: 920px; display: grid; grid-template-columns: 1.05fr 1fr;
-      background: var(--card); border: 1px solid var(--border);
-      border-radius: 22px; overflow: hidden; box-shadow: var(--shadow-hover);
+    .lp-hero { grid-area: hero; }
+    .lp-rest { grid-area: rest; display: flex; flex-direction: column; gap: 44px; }
+    .lp-auth { grid-area: auth; position: sticky; top: 84px; }
+
+    .lp-hero h1 {
+      font-family: var(--font-head); font-size: clamp(30px, 4.2vw, 50px); line-height: 1.12;
+      font-weight: 700; letter-spacing: -1px; margin: 18px 0 16px;
     }
-    .auth-brand {
-      position: relative; padding: 44px 40px; color: #fff; overflow: hidden;
-      background: var(--grad-accent);
-      display: flex; flex-direction: column; justify-content: space-between; gap: 32px;
+    .lp-hero p.lead { color: var(--muted); font-size: 17px; line-height: 1.7; max-width: 600px; }
+    .lp-cta { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 26px; }
+    .lp-stats { display: flex; gap: 28px; flex-wrap: wrap; margin-top: 30px; }
+    .lp-stat strong { display: block; font-family: var(--font-head); font-size: 22px; }
+    .lp-stat span { font-size: 12px; color: var(--muted); }
+
+    /* Product preview (pure CSS mock of the dashboard) */
+    .lp-preview {
+      margin-top: 34px; padding: 20px; border-radius: 18px;
+      background: var(--card); border: 1px solid var(--border); box-shadow: var(--shadow-hover);
+      display: grid; grid-template-columns: 150px 1fr; gap: 24px; align-items: center;
     }
-    .auth-brand::before, .auth-brand::after {
-      content: ""; position: absolute; border-radius: 50%; pointer-events: none;
-      background: rgba(255,255,255,0.12);
+    .lp-donut {
+      width: 150px; height: 150px; border-radius: 50%; position: relative;
+      background: conic-gradient(#8b5cf6 0 46%, #3b82f6 46% 72%, #10b981 72% 86%, #22d3a0 86% 94%, #f59e0b 94% 100%);
     }
-    .auth-brand::before { width: 320px; height: 320px; top: -120px; right: -110px; }
-    .auth-brand::after  { width: 220px; height: 220px; bottom: -90px; left: -70px; background: rgba(255,255,255,0.08); }
-    .brand-logo { font-family: var(--font-head); font-size: 22px; font-weight: 700; position: relative; }
-    .brand-title { font-family: var(--font-head); font-size: 30px; line-height: 1.2; font-weight: 700; letter-spacing: -0.5px; position: relative; }
-    .brand-list { list-style: none; display: grid; gap: 12px; position: relative; font-size: 14px; }
-    .brand-list li { display: flex; gap: 10px; align-items: flex-start; opacity: .95; }
-    .brand-list li span:first-child {
-      flex-shrink: 0; width: 26px; height: 26px; border-radius: 8px; display: inline-flex;
-      align-items: center; justify-content: center; background: rgba(255,255,255,0.18);
+    .lp-donut::after {
+      content: "100%"; position: absolute; inset: 26px; border-radius: 50%; background: var(--card);
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--font-head); font-weight: 700; font-size: 20px;
     }
-    .auth-card { padding: 40px; }
+    .lp-bars { display: grid; gap: 10px; }
+    .lp-bar { display: grid; grid-template-columns: 120px 1fr 44px; gap: 10px; align-items: center; font-size: 12.5px; }
+    .lp-bar-track { height: 8px; border-radius: 4px; background: var(--border); overflow: hidden; }
+    .lp-bar-track i { display: block; height: 100%; border-radius: 4px; }
+    .lp-bar b { font-family: var(--font-mono); font-size: 12px; text-align: right; }
+
+    .lp-section h2 { font-family: var(--font-head); font-size: 24px; letter-spacing: -0.4px; margin-bottom: 6px; }
+    .lp-section > p { color: var(--muted); font-size: 14px; margin-bottom: 20px; }
+    .lp-features { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
+    .lp-feature {
+      background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 18px;
+      transition: transform .2s, border-color .2s, box-shadow .2s;
+    }
+    .lp-feature:hover { transform: translateY(-3px); border-color: var(--accent); box-shadow: var(--shadow); }
+    .lp-feature .ic {
+      width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center;
+      font-size: 18px; background: rgba(99,102,241,0.14); margin-bottom: 12px;
+    }
+    .lp-feature h3 { font-family: var(--font-head); font-size: 15px; margin-bottom: 6px; }
+    .lp-feature p { font-size: 13px; color: var(--muted); line-height: 1.6; }
+
+    /* ── Auth card ── */
+    .auth-card {
+      background: var(--card); border: 1px solid var(--border); border-radius: 20px;
+      padding: 30px; box-shadow: var(--shadow-hover); position: relative; overflow: hidden;
+    }
+    .auth-card::before {
+      content: ""; position: absolute; left: 0; right: 0; top: 0; height: 4px; background: var(--grad-accent);
+    }
     .auth-logo {
       font-family: var(--font-head); font-size: 22px; font-weight: 700;
       color: var(--text); margin-bottom: 4px;
     }
-    .auth-tagline { font-size: 13px; color: var(--muted); margin-bottom: 26px; }
+    .auth-tagline { font-size: 13px; color: var(--muted); margin-bottom: 22px; }
     .auth-tabs {
-      display: flex; margin-bottom: 24px; padding: 4px; gap: 4px;
+      display: flex; margin-bottom: 22px; padding: 4px; gap: 4px;
       background: var(--bg2); border: 1px solid var(--border); border-radius: 12px;
     }
     .tab-btn {
@@ -56,8 +93,8 @@
     .auth-panel { display: none; animation: fadeIn .25s ease; }
     .auth-panel.active { display: block; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
-    .form-group { margin-bottom: 16px; }
-    label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; font-weight: 500; }
+    .form-group { margin-bottom: 14px; }
+    .auth-card label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; font-weight: 500; }
     .auth-card input {
       width: 100%; background: var(--bg2); border: 1.5px solid var(--border);
       border-radius: 10px; padding: 11px 14px; color: var(--text);
@@ -73,7 +110,7 @@
     .msg.success { color: var(--green); }
     .forgot-link {
       font-size: 12px; color: var(--accent2); cursor: pointer; background: none; border: none;
-      font-family: inherit; display: block; margin: -8px 0 16px auto;
+      font-family: inherit; display: block; margin: -6px 0 14px auto;
     }
     .forgot-link:hover, .back-link:hover { color: var(--text); }
     .back-link {
@@ -86,26 +123,73 @@
       font-size: 12px; color: var(--muted); word-break: break-all;
     }
     .hint { font-size: 11px; color: var(--muted); margin-left: 4px; }
-    @media (max-width: 760px) {
-      .auth-shell { grid-template-columns: 1fr; max-width: 440px; }
-      .auth-brand { padding: 28px 24px; gap: 14px; }
-      .brand-title { font-size: 22px; }
-      .brand-list { display: none; }
-      .auth-card { padding: 28px 24px; }
+    .auth-foot { margin-top: 16px; font-size: 11px; color: var(--muted); line-height: 1.5; }
+    .auth-foot a { color: var(--muted); text-decoration: underline; }
+    .grecaptcha-badge { visibility: hidden; }  /* notice shown in .auth-foot, as Google's terms allow */
+
+    @media (max-width: 1000px) {
+      .lp-layout { grid-template-columns: minmax(0, 1fr); grid-template-areas: "hero" "auth" "rest"; padding-top: 24px; }
+      .lp-auth { position: static; max-width: 480px; width: 100%; }
+    }
+    @media (max-width: 560px) {
+      .lp-preview { grid-template-columns: 1fr; justify-items: center; }
+      .lp-bars { width: 100%; }
+      .lp-bar { grid-template-columns: 96px 1fr 40px; }
+      .auth-card { padding: 24px 18px; }
     }
   </style>
 </head>
 <body>
-  <div class="auth-shell">
-  <aside class="auth-brand">
-    <div class="brand-logo">📊 PortfolioLab</div>
-    <div class="brand-title">Il tuo portafoglio,<br />finalmente chiaro.</div>
-    <ul class="brand-list">
-      <li><span>🌍</span><span>Asset allocation ed esposizione geografica e valutaria</span></li>
-      <li><span>🔬</span><span>Analisi approfondita: rischio, drawdown, correlazioni</span></li>
-      <li><span>🏛️</span><span>Obbligazioni e rendimenti dei titoli di Stato in tempo reale</span></li>
-    </ul>
-  </aside>
+  <nav class="navbar">
+    <div class="nav-inner">
+      <a href="/login" class="nav-logo">
+        <span class="logo-icon">📊</span>
+        <span class="logo-text">Portfolio<strong>Lab</strong></span>
+      </a>
+      <div class="nav-links">
+        <a href="#funzioni">Funzioni</a>
+        <a href="#come-funziona">Come funziona</a>
+        <a href="#faq">FAQ</a>
+      </div>
+      <div class="nav-cta" style="display:flex;align-items:center;gap:12px">
+        <span class="badge-free">🆓 Gratuito</span>
+      </div>
+    </div>
+  </nav>
+
+  <main class="lp-layout container">
+
+    <!-- ── HERO ── -->
+    <section class="lp-hero">
+      <span class="hero-badge">📈 Analisi portafoglio in tempo reale</span>
+      <h1>Capisci davvero cosa c'è<br />nel tuo <span class="gradient-text">portafoglio</span></h1>
+      <p class="lead">Inserisci ETF, azioni, obbligazioni e crypto per ISIN o ticker, oppure importa
+        l'estratto conto della banca. PortfolioLab ti mostra allocazione, esposizione geografica e
+        valutaria, costi e rischio, in un'unica dashboard.</p>
+      <div class="lp-cta">
+        <button class="btn btn-primary btn-lg" type="button" onclick="startRegister()">Crea account gratis</button>
+        <a class="btn btn-ghost btn-lg" href="#funzioni">Scopri le funzioni</a>
+      </div>
+      <div class="lp-stats">
+        <div class="lp-stat"><strong>ISIN · Ticker</strong><span>ricerca su tutti i mercati</span></div>
+        <div class="lp-stat"><strong>Look-through</strong><span>dentro ogni ETF</span></div>
+        <div class="lp-stat"><strong>0 €</strong><span>nessun abbonamento</span></div>
+      </div>
+
+      <div class="lp-preview" aria-hidden="true">
+        <div class="lp-donut"></div>
+        <div class="lp-bars">
+          <div class="lp-bar"><span>ETF Azionario</span><div class="lp-bar-track"><i style="width:92%;background:#8b5cf6"></i></div><b>46%</b></div>
+          <div class="lp-bar"><span>Azioni</span><div class="lp-bar-track"><i style="width:52%;background:#3b82f6"></i></div><b>26%</b></div>
+          <div class="lp-bar"><span>Obbligazioni</span><div class="lp-bar-track"><i style="width:28%;background:#10b981"></i></div><b>14%</b></div>
+          <div class="lp-bar"><span>Criptovalute</span><div class="lp-bar-track"><i style="width:16%;background:#22d3a0"></i></div><b>8%</b></div>
+          <div class="lp-bar"><span>Liquidità</span><div class="lp-bar-track"><i style="width:12%;background:#f59e0b"></i></div><b>6%</b></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── AUTH ── -->
+    <aside class="lp-auth" id="auth">
   <div class="auth-card">
     <div class="auth-logo">Benvenuto 👋</div>
     <div class="auth-tagline">Il tuo dashboard di analisi portafoglio</div>
@@ -179,8 +263,71 @@
       <button class="btn-primary" id="resetBtn" onclick="doReset()">Imposta nuova password</button>
       <div class="msg" id="resetMsg"></div>
     </div>
+    <p class="auth-foot">Protetto da reCAPTCHA: si applicano la
+      <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Privacy Policy</a> e i
+      <a href="https://policies.google.com/terms" target="_blank" rel="noopener">Termini di servizio</a> di Google.</p>
   </div>
-  </div>
+    </aside>
+
+    <!-- ── PRODUCT ── -->
+    <div class="lp-rest">
+      <section class="lp-section" id="funzioni">
+        <h2>Tutto quello che serve per leggere il tuo portafoglio</h2>
+        <p>Dati di mercato reali, nessun file Excel da mantenere.</p>
+        <div class="lp-features">
+          <div class="lp-feature"><div class="ic">🔍</div><h3>Ricerca per ISIN o ticker</h3>
+            <p>ETF, azioni, obbligazioni e crypto: nome, prezzo, valuta e TER vengono compilati da soli.</p></div>
+          <div class="lp-feature"><div class="ic">📄</div><h3>Import dalla banca</h3>
+            <p>Trascina i PDF dei tuoi estratti conto: l'AI riconosce titoli, quantità e prezzi di carico.</p></div>
+          <div class="lp-feature"><div class="ic">🌍</div><h3>Allocazione ed esposizione</h3>
+            <p>Asset class, aree geografiche e valute, anche quelle "nascoste" dentro gli ETF.</p></div>
+          <div class="lp-feature"><div class="ic">🔬</div><h3>Analisi approfondita</h3>
+            <p>Rendimento storico, volatilità, drawdown, correlazioni, frontiera efficiente e Monte Carlo.</p></div>
+          <div class="lp-feature"><div class="ic">🏛️</div><h3>Obbligazioni e titoli di Stato</h3>
+            <p>Quotazioni di Borsa Italiana, rischio sovrano e mappa dei rendimenti a 10, 20 e 30 anni.</p></div>
+          <div class="lp-feature"><div class="ic">🧠</div><h3>Superinvestitori</h3>
+            <p>Confronta le tue posizioni con i portafogli dichiarati dai grandi gestori.</p></div>
+        </div>
+      </section>
+
+      <section class="lp-section" id="come-funziona">
+        <h2>Come funziona</h2>
+        <p>Tre passi, pochi minuti.</p>
+        <div class="steps-grid">
+          <div class="step"><div class="step-num">1</div><h4>Crea l'account</h4>
+            <p>Bastano username, email e password. Gratis, senza carta di credito.</p></div>
+          <div class="step"><div class="step-num">2</div><h4>Inserisci le posizioni</h4>
+            <p>In percentuale (con il valore totale) o in euro, oppure importa il PDF della banca.</p></div>
+          <div class="step"><div class="step-num">3</div><h4>Leggi la dashboard</h4>
+            <p>Allocazione, rischio, costi e performance. Salva il portafoglio e riprendilo quando vuoi.</p></div>
+        </div>
+      </section>
+
+      <section class="lp-section" id="faq">
+        <h2>Domande frequenti</h2>
+        <div class="faq-list" style="margin-top:16px">
+          <details class="faq-item"><summary>È davvero gratuito?</summary>
+            <p>Sì. Non ci sono abbonamenti né funzioni a pagamento.</p></details>
+          <details class="faq-item"><summary>Devo collegare il mio conto bancario?</summary>
+            <p>No. Inserisci tu le posizioni oppure carichi un PDF: nessun accesso al tuo conto, nessuna operazione possibile.</p></details>
+          <details class="faq-item"><summary>Da dove arrivano i dati?</summary>
+            <p>Prezzi e composizione degli ETF da Yahoo Finance e justETF, obbligazioni da Borsa Italiana, rendimenti dei titoli di Stato da CNBC e FRED.</p></details>
+          <details class="faq-item"><summary>È una consulenza finanziaria?</summary>
+            <p>No. PortfolioLab è uno strumento di analisi a scopo informativo: non fornisce raccomandazioni di investimento.</p></details>
+        </div>
+      </section>
+
+      <div class="disclaimer"><strong>Avvertenza:</strong> i dati possono essere in ritardo o incompleti e i
+        rendimenti passati non garantiscono quelli futuri. Verifica sempre le informazioni prima di investire.</div>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-logo">📊 PortfolioLab</div>
+      <div class="footer-copy">© 2026 PortfolioLab · Strumento di analisi a scopo informativo</div>
+    </div>
+  </footer>
 
   <script src="/static/js/session.js"></script>
   <script>
@@ -193,6 +340,8 @@
     if (_resetToken) {
       document.getElementById('mainAuth').style.display   = 'none';
       document.getElementById('resetPanel').style.display = 'block';
+      // Keep the token out of history and of the Referer sent to third-party scripts.
+      history.replaceState(null, '', '/login');
     }
 
     // ── reCAPTCHA v3 (invisible): enabled when the backend exposes a site key ──
@@ -225,6 +374,14 @@
         document.getElementById(t === 'login' ? 'tabLogin' : 'tabRegister')
           .classList.toggle('active', t === tab);
       });
+    }
+
+    // Hero CTA: open the sign-up tab and bring the form into view.
+    function startRegister() {
+      hideForgot();
+      switchTab('register');
+      document.getElementById('auth').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      document.getElementById('regUsername').focus({ preventScroll: true });
     }
 
     function showForgot() {
@@ -344,7 +501,7 @@
 
     // Enter key shortcuts
     document.addEventListener('keydown', e => {
-      if (e.key !== 'Enter') return;
+      if (e.key !== 'Enter' || !e.target.closest('.auth-card input')) return;  // landing has other focusables
       if (document.getElementById('resetPanel').style.display  !== 'none') doReset();
       else if (document.getElementById('forgotPanel').style.display !== 'none') doForgot();
       else if (document.getElementById('loginPanel').classList.contains('active')) doLogin();
