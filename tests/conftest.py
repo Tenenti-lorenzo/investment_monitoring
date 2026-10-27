@@ -7,6 +7,7 @@ table creation): both are neutralised here *before* the import.
 import os
 
 os.environ["SECRETS_ARN"] = ""  # load_dotenv() never overrides an existing var
+os.environ["RECAPTCHA_SECRET"] = ""  # captcha off unless a test enables it
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
 
 import backend.database as database  # noqa: E402

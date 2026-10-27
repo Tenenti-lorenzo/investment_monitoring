@@ -22,3 +22,10 @@ fred_api_key = ""
 # Set this AFTER the first deploy — get the value from `terraform output cloudfront_url`
 # then re-run `make tf-apply` so password-reset emails contain the correct link.
 # app_url = "https://xxxxxxxxxxxxxx.cloudfront.net"
+
+# Password-reset emails via SES (verify the address from the email AWS sends after apply)
+# ses_sender_email = "you@example.com"
+
+# Bot protection on login/register (Google reCAPTCHA v3, register the CloudFront domain)
+# recaptcha_site_key   = "6Lxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+# recaptcha_secret_key = "6Lxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"

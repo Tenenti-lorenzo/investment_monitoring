@@ -51,6 +51,19 @@ variable "app_url" {
   default     = ""
 }
 
+variable "recaptcha_site_key" {
+  description = "Google reCAPTCHA v3 site key (public). Register the CloudFront domain at google.com/recaptcha/admin."
+  type        = string
+  default     = ""
+}
+
+variable "recaptcha_secret_key" {
+  description = "Google reCAPTCHA v3 secret key. Empty = bot protection on login/register disabled."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
 variable "ses_sender_email" {
   description = "Verified SES sender for password-reset emails. Empty = reset by email disabled (API answers 503)."
   type        = string

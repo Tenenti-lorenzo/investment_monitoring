@@ -195,6 +195,29 @@
       document.getElementById('resetPanel').style.display = 'block';
     }
 
+    // ── reCAPTCHA v3 (invisible): enabled when the backend exposes a site key ──
+    let _siteKey = null;
+    const _captchaReady = fetch('/api/auth/config')
+      .then(r => r.json())
+      .then(cfg => {
+        _siteKey = cfg.recaptcha_site_key;
+        if (!_siteKey) return;
+        return new Promise((resolve, reject) => {
+          const s = document.createElement('script');
+          s.src = `https://www.google.com/recaptcha/api.js?render=${encodeURIComponent(_siteKey)}`;
+          s.onload = () => grecaptcha.ready(resolve);
+          s.onerror = reject;
+          document.head.appendChild(s);
+        });
+      })
+      .catch(() => {});  // backend rejects the request if a token was required
+
+    async function captchaToken(action) {
+      await _captchaReady;
+      if (!_siteKey || !window.grecaptcha) return '';
+      try { return await grecaptcha.execute(_siteKey, { action }); } catch { return ''; }
+    }
+
     function switchTab(tab) {
       ['login','register'].forEach(t => {
         document.getElementById(t === 'login' ? 'loginPanel' : 'registerPanel')
@@ -229,7 +252,7 @@
         const res  = await fetch('/api/auth/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, password }),
+          body: JSON.stringify({ username, password, captcha_token: await captchaToken('login') }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || 'Errore');
@@ -256,7 +279,7 @@
         const res  = await fetch('/api/auth/register', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, email, password }),
+          body: JSON.stringify({ username, email, password, captcha_token: await captchaToken('register') }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || 'Errore');
@@ -278,7 +301,7 @@
         const res  = await fetch('/api/auth/forgot-password', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email }),
+          body: JSON.stringify({ email, captcha_token: await captchaToken('forgot') }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || 'Errore');

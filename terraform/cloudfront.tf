@@ -1,5 +1,5 @@
 locals {
-  s3_origin_id  = "S3-frontend"
+  s3_origin_id    = "S3-frontend"
   apigw_origin_id = "APIGateway"
 }
 

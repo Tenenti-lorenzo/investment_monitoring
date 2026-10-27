@@ -42,6 +42,7 @@ from backend.bond_market import BondQuote, fetch_bond_quote
 from backend.sovereign_yields import SovereignYieldsResponse, fetch_sovereign_yields
 from backend.analysis_models import DeepAnalysisRequest, DeepAnalysisResponse, LookThroughResponse
 from backend.deep_analysis import run_deep_analysis
+from backend.captcha import CaptchaConfig, public_config, verify_captcha
 from backend.exceptions import InsufficientDataError
 from backend.fx_rates import FxRate, fetch_eur_rate
 from backend.password_reset_email import dev_reset_link_enabled, send_reset_email
@@ -144,13 +145,16 @@ class RegisterRequest(BaseModel):
     username: str
     email: str
     password: str
+    captcha_token: str = ""
 
 class LoginRequest(BaseModel):
     username: str
     password: str
+    captcha_token: str = ""
 
 class ForgotRequest(BaseModel):
     email: str
+    captcha_token: str = ""
 
 class ResetRequest(BaseModel):
     token: str
@@ -163,8 +167,20 @@ _USERNAME_RE = re.compile(r"^[\w.\-]{3,40}$")
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
+def _require_human(token: str, action: str) -> None:
+    if not verify_captcha(token, action):
+        raise HTTPException(403, "Verifica anti-bot non superata. Ricarica la pagina e riprova.")
+
+
+@app.get("/api/auth/config", response_model=CaptchaConfig)
+def auth_config() -> CaptchaConfig:
+    """Public settings the login page needs (reCAPTCHA site key)."""
+    return public_config()
+
+
 @app.post("/api/auth/register")
 def auth_register(req: RegisterRequest):
+    _require_human(req.captcha_token, "register")
     username = req.username.strip()
     email = req.email.strip().lower()
     if not _USERNAME_RE.match(username):
@@ -184,6 +200,7 @@ def auth_register(req: RegisterRequest):
 
 @app.post("/api/auth/login")
 def auth_login(req: LoginRequest):
+    _require_human(req.captcha_token, "login")
     user = get_user_by_username(req.username.strip())
     if not user or not _verify_pw(req.password, user["hashed_password"]):
         raise HTTPException(401, "Credenziali non valide")
@@ -192,6 +209,7 @@ def auth_login(req: LoginRequest):
 
 @app.post("/api/auth/forgot-password")
 def auth_forgot_password(req: ForgotRequest):
+    _require_human(req.captcha_token, "forgot")
     user = get_user_by_email(req.email.strip().lower())
     # Always return OK to avoid revealing whether the email is registered
     if not user:
