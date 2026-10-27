@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PortfolioLab – Rendimenti titoli di Stato</title>
+  <meta name="description" content="Mappa mondiale dei rendimenti dei titoli di Stato a 10, 20 e 30 anni, con variazione giornaliera e spread contro il Bund." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js" integrity="sha384-CjloA8y00+1SDAUkjs099PVfnY2KmDC2BZnws9kh8D/lX1s46w6EPhpXdqMfjK6i" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js" integrity="sha384-Ukv1p/xTma6P4/2bY5KzWBw+ydSpXmhCMtyciIQVDJ1RmOxtCYNMF1uXT9T63H67" crossorigin="anonymous"></script>
+  <link rel="stylesheet" href="/static/css/style.css" />
+  <script src="/static/js/theme.js"></script>
+  <link rel="stylesheet" href="/static/css/analisi.css" />
+  <link rel="stylesheet" href="/static/css/rendimenti.css" />
+  <script src="/static/js/session.js"></script>
+  <script>
+    // Auth guard — runs before anything else (30-minute inactivity expiry)
+    Session.guard();
+    function doLogout() { Session.logout(); }
+  </script>
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-inner">
+      <a href="/" class="nav-logo">
+        <span class="logo-icon">📊</span>
+        <span class="logo-text">Portfolio<strong>Lab</strong></span>
+      </a>
+      <div class="nav-links">
+        <a href="/">← Dashboard</a>
+        <a href="/analisi">Analisi approfondita</a>
+        <a href="#mappa">Mappa</a>
+        <a href="#lista">Lista</a>
+      </div>
+      <div class="nav-cta" style="display:flex;align-items:center;gap:12px">
+        <span id="navUsername" style="font-size:13px;color:var(--muted)"></span>
+        <button class="btn btn-ghost btn-sm" type="button" onclick="doLogout()">Esci</button>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container an-main">
+    <header class="an-title">
+      <h1>Rendimenti dei titoli di Stato</h1>
+      <p>Rendimento a scadenza dei benchmark governativi per paese. Scegli la scadenza: la mappa si colora
+        in base al rendimento, la lista sotto mostra variazione del giorno, spread contro il Bund tedesco e
+        range delle ultime 52 settimane.</p>
+    </header>
+
+    <section class="card" id="mappa">
+      <div class="yd-toolbar">
+        <div class="yd-tenors" role="tablist" aria-label="Scadenza">
+          <button type="button" role="tab" data-tenor="10" class="active" aria-selected="true">10 anni</button>
+          <button type="button" role="tab" data-tenor="20" aria-selected="false">20 anni</button>
+          <button type="button" role="tab" data-tenor="30" aria-selected="false">30 anni</button>
+        </div>
+        <span id="ydStatus" class="an-status">Caricamento…</span>
+        <button id="ydRefresh" class="btn btn-ghost btn-sm" type="button">↻ Aggiorna</button>
+      </div>
+      <div id="ydKpis" class="kpi-row k4" style="margin-top:14px"></div>
+      <div class="yd-map-wrap">
+        <svg id="ydMap" role="img" aria-label="Mappa dei rendimenti per paese"></svg>
+        <div id="ydTooltip" class="yd-tooltip hidden"></div>
+      </div>
+      <div class="yd-legend">
+        <span id="ydLegendMin"></span>
+        <div id="ydLegendBar" class="yd-legend-bar"></div>
+        <span id="ydLegendMax"></span>
+        <span class="yd-legend-na"><i></i> Nessun dato per questa scadenza</span>
+      </div>
+    </section>
+
+    <section class="card" id="lista">
+      <div class="card-header"><h2 id="ydListTitle">Lista paesi</h2>
+        <p>Clicca un'intestazione per ordinare, una riga per evidenziare il paese sulla mappa.</p></div>
+      <div class="an-table-wrap">
+        <table class="an-table yd-table">
+          <thead>
+            <tr>
+              <th data-sort="name">Paese</th>
+              <th data-sort="yield">Rendimento</th>
+              <th data-sort="change">Var. giorno</th>
+              <th data-sort="spread">Spread vs Bund</th>
+              <th data-sort="slope">Pendenza 30−10</th>
+              <th data-sort="range">Range 52 sett.</th>
+              <th data-sort="asof">Aggiornato</th>
+            </tr>
+          </thead>
+          <tbody id="ydRows"></tbody>
+        </table>
+      </div>
+      <div id="ydNote" class="an-explain">
+        <strong>Spread vs Bund</strong>: differenza in punti base (1 bp = 0,01%) col titolo tedesco di pari
+        scadenza. Per i paesi dell'euro misura il rischio di credito; per gli altri include anche tassi e
+        inflazione della valuta locale. <strong>Pendenza 30−10</strong> positiva = curva inclinata (normale),
+        negativa = curva invertita. I dati "FRED (mensile)" sono medie mensili OECD, non quotazioni live.
+      </div>
+    </section>
+
+    <p class="an-disclaimer">Strumento informativo, non costituisce consulenza finanziaria. Quotazioni CNBC
+      (Tradeweb/Reuters), fallback FRED/OECD.</p>
+  </main>
+
+  <script src="/static/js/rendimenti.js"></script>
+</body>
+</html>

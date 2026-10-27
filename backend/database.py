@@ -57,15 +57,23 @@ def get_user_by_username(username: str) -> dict | None:
     resp = _table().get_item(Key={"username": username})
     return resp.get("Item")
 
+def _scan_first(condition) -> dict | None:
+    # A scan reads at most 1 MB per page and filters afterwards, so a match can
+    # sit on any page: follow LastEvaluatedKey until found or exhausted.
+    table, kwargs = _table(), {"FilterExpression": condition}
+    while True:
+        resp = table.scan(**kwargs)
+        if resp.get("Items"):
+            return resp["Items"][0]
+        if "LastEvaluatedKey" not in resp:
+            return None
+        kwargs["ExclusiveStartKey"] = resp["LastEvaluatedKey"]
+
 def get_user_by_email(email: str) -> dict | None:
-    resp = _table().scan(FilterExpression=Attr("email").eq(email))
-    items = resp.get("Items", [])
-    return items[0] if items else None
+    return _scan_first(Attr("email").eq(email))
 
 def get_user_by_reset_token(token: str) -> dict | None:
-    resp = _table().scan(FilterExpression=Attr("reset_token").eq(token))
-    items = resp.get("Items", [])
-    return items[0] if items else None
+    return _scan_first(Attr("reset_token").eq(token))
 
 def create_user(username: str, email: str, hashed_password: str) -> None:
     if get_user_by_email(email):

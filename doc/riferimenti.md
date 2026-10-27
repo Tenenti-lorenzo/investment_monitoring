@@ -30,7 +30,9 @@ accorgersi dei cambiamenti.
 | `ANTHROPIC_MODEL` | `claude-sonnet-4-6` | Modello usato per l'estrazione |
 | `FRED_API_KEY` | — | Rischio sovrano delle obbligazioni; senza chiave il livello e' `N/D` |
 | `APP_URL` | `http://localhost:8000` | Base URL per link reset password |
-| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` | — / `587` | Invio email reset (opzionale; se assente, link restituito in risposta) |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` | — / `587` | Invio email reset via SMTP (alternativa a SES); `SMTP_FROM` opzionale |
+| `SES_SENDER` | — | Mittente verificato SES per le email di reset (in AWS: `ses_sender_email` in Terraform). Ha precedenza su SMTP |
+| `AUTH_DEV_RESET_LINK` | — | Solo sviluppo locale: `true` restituisce il link di reset nella risposta. **Mai in produzione** (chiunque conosca un'email potrebbe prendere l'account) |
 
 ## Tooling del progetto
 

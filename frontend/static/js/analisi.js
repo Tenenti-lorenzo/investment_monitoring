@@ -58,9 +58,12 @@
   function buildRequest(p) {
     const pctMode = (p.inputMode || 'pct') === 'pct';
     const liq = parseFloat(p.liquidita) || 0;
+    // Percent portfolios are sized on the declared total value, else on a notional amount.
+    const declaredTotal = parseFloat(p.portfolioTotal) || 0;
+    const base = declaredTotal > 0 ? declaredTotal : NOTIONAL;
     const holdings = (p.holdings || []).map(h => {
       const alloc = parseFloat(h.allocation) || 0;
-      const amount = pctMode ? alloc / 100 * NOTIONAL : (parseFloat(h.amount) || null);
+      const amount = pctMode ? alloc / 100 * base : (parseFloat(h.amount) || null);
       return {
         isin: h.isin || '', ticker: h.ticker, yf_ticker: h.yf_ticker || null, name: h.name || h.ticker,
         category: h.category || 'Altro', currency: h.currency || null, geography: h.geography || null,
@@ -71,11 +74,11 @@
     });
     return {
       holdings,
-      liquidita: pctMode ? liq / 100 * NOTIONAL : liq,
+      liquidita: pctMode ? liq / 100 * base : liq,
       lookback_years: parseInt($('anLookback').value, 10),
       risk_free: (parseFloat($('anRiskFree').value) || 0) / 100,
       benchmark: $('anBenchmark').value.trim() || 'SWDA.MI',
-      _pctMode: pctMode,
+      _pctMode: pctMode && !(declaredTotal > 0),  // only a notional base needs the caveat
     };
   }
 

@@ -19,7 +19,7 @@ import yfinance  # noqa: E402
 from fakes import FakeDB  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
-from backend import bond_market, bonds, main, superinvestors  # noqa: E402
+from backend import bond_market, bonds, fx_rates, main, sovereign_yields, superinvestors  # noqa: E402
 
 _DB_FUNCS = (
     "get_user_by_username",
@@ -55,6 +55,8 @@ def clear_caches() -> None:
     bond_market._quote_cache.clear()
     superinvestors._cache.clear()
     bonds._yield_cache.clear()
+    sovereign_yields._cache.clear()
+    fx_rates._cache.clear()
 
 
 @pytest.fixture

@@ -174,9 +174,9 @@ Legenda: 🔒 = richiede Bearer JWT (`get_current_user`).
 
 | Endpoint | Metodo | Input | Output (200) | Errori |
 | --- | --- | --- | --- | --- |
-| `/api/auth/register` | POST | `RegisterRequest` | `{status, token, username}` | 400 password <6 o username/email in uso |
+| `/api/auth/register` | POST | `RegisterRequest` | `{status, token, username}` | 400 username non valido (3-40 caratteri `\w.-`), email non valida, password <6 o username/email in uso |
 | `/api/auth/login` | POST | `LoginRequest` | `{token, username}` | 401 credenziali non valide |
-| `/api/auth/forgot-password` | POST | `ForgotRequest` | `{status, message}` oppure `{status, reset_url, message}` se SMTP non configurato | sempre 200 (non rivela se l'email esiste) |
+| `/api/auth/forgot-password` | POST | `ForgotRequest` | `{status, message}`; il link parte via email (SES o SMTP, `backend/password_reset_email.py`). `{status, reset_url, message}` solo con `AUTH_DEV_RESET_LINK=true` (sviluppo locale) | 200 anche per email sconosciuta (non rivela se esiste); 503 se nessun trasporto email e' configurato |
 | `/api/auth/reset-password` | POST | `ResetRequest` | `{status, message}` | 400 token invalido/scaduto o password <6 |
 | `/api/auth/me` | GET 🔒 | — | `{username, email, created_at}` | 401 / 404 utente non trovato |
 

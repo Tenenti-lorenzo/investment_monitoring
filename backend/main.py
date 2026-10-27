@@ -15,8 +15,6 @@ import io
 import json
 import base64
 import secrets
-import smtplib
-from email.mime.text import MIMEText
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from dotenv import load_dotenv
@@ -41,9 +39,12 @@ import bcrypt as _bcrypt_lib
 from jose import jwt, JWTError
 from backend.bonds import classify_bond, fetch_sovereign_risk
 from backend.bond_market import BondQuote, fetch_bond_quote
+from backend.sovereign_yields import SovereignYieldsResponse, fetch_sovereign_yields
 from backend.analysis_models import DeepAnalysisRequest, DeepAnalysisResponse, LookThroughResponse
 from backend.deep_analysis import run_deep_analysis
 from backend.exceptions import InsufficientDataError
+from backend.fx_rates import FxRate, fetch_eur_rate
+from backend.password_reset_email import dev_reset_link_enabled, send_reset_email
 from backend.look_through import run_look_through
 from backend.superinvestors import (
     ConsensusStock,
@@ -105,6 +106,10 @@ if frontend_path.exists():
     def analysis_page():
         return FileResponse(str(frontend_path / "analisi.html"))
 
+    @app.get("/rendimenti")
+    def yields_page():
+        return FileResponse(str(frontend_path / "rendimenti.html"))
+
 
 # ─── Auth helpers ────────────────────────────────────────────────────────────
 
@@ -154,17 +159,27 @@ class ResetRequest(BaseModel):
 
 # ─── Auth routes ─────────────────────────────────────────────────────────────
 
+_USERNAME_RE = re.compile(r"^[\w.\-]{3,40}$")
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
 @app.post("/api/auth/register")
 def auth_register(req: RegisterRequest):
+    username = req.username.strip()
+    email = req.email.strip().lower()
+    if not _USERNAME_RE.match(username):
+        raise HTTPException(400, "Username non valido: 3-40 caratteri tra lettere, numeri, . _ -")
+    if not _EMAIL_RE.match(email):
+        raise HTTPException(400, "Indirizzo email non valido")
     if len(req.password) < 6:
         raise HTTPException(400, "La password deve avere almeno 6 caratteri")
     hashed = _hash_pw(req.password)
     try:
-        create_user(req.username.strip(), req.email.strip().lower(), hashed)
-    except ValueError as e:
+        create_user(username, email, hashed)
+    except ValueError:
         raise HTTPException(400, "Username o email già in uso")
-    token = _create_token(req.username.strip())
-    return {"status": "ok", "token": token, "username": req.username.strip()}
+    token = _create_token(username)
+    return {"status": "ok", "token": token, "username": username}
 
 
 @app.post("/api/auth/login")
@@ -189,30 +204,17 @@ def auth_forgot_password(req: ForgotRequest):
     app_url = os.getenv("APP_URL", "http://localhost:8000")
     reset_url = f"{app_url}/login?reset_token={token}"
 
-    smtp_host = os.getenv("SMTP_HOST")
-    if smtp_host:
-        try:
-            msg = MIMEText(
-                f"Clicca il link per reimpostare la password:\n\n{reset_url}\n\n"
-                "Il link scade tra 1 ora."
-            )
-            msg["Subject"] = "Reimposta la tua password – PortfolioLab"
-            msg["From"] = os.getenv("SMTP_USER", "noreply@portfoliolab")
-            msg["To"] = req.email
-            with smtplib.SMTP(smtp_host, int(os.getenv("SMTP_PORT", "587"))) as s:
-                s.starttls()
-                s.login(os.getenv("SMTP_USER", ""), os.getenv("SMTP_PASS", ""))
-                s.sendmail(msg["From"], [req.email], msg.as_string())
-            return {"status": "ok", "message": "Email inviata. Controlla la tua casella di posta."}
-        except Exception:
-            pass  # Fall through to local-mode response
-
-    # SMTP not configured: return the link directly (local / dev mode)
-    return {
-        "status": "ok",
-        "reset_url": reset_url,
-        "message": "SMTP non configurato. Usa il link qui sotto per reimpostare la password.",
-    }
+    # The link is a credential: it goes only to the account's mailbox. Returning it
+    # in the response would let anyone who knows an email take over the account.
+    if dev_reset_link_enabled():
+        return {
+            "status": "ok",
+            "reset_url": reset_url,
+            "message": "Modalità sviluppo: usa il link qui sotto per reimpostare la password.",
+        }
+    if send_reset_email(user["email"], reset_url):
+        return {"status": "ok", "message": "Email inviata. Controlla la tua casella di posta."}
+    raise HTTPException(503, "Invio email non disponibile al momento. Riprova più tardi.")
 
 
 @app.post("/api/auth/reset-password")
@@ -479,6 +481,20 @@ def bond_quote(isin: str, _: str = Depends(get_current_user)) -> BondQuote:
     if quote is None:
         raise HTTPException(404, f"Obbligazione {isin} non trovata su Borsa Italiana")
     return quote
+
+
+@app.get("/api/bonds/sovereign-yields", response_model=SovereignYieldsResponse)
+def sovereign_yields(_: str = Depends(get_current_user)) -> SovereignYieldsResponse:
+    """10/20/30Y government-bond yields by country (world map page)."""
+    return fetch_sovereign_yields()
+
+
+@app.get("/api/fx/{currency}", response_model=FxRate)
+def fx_rate(currency: str, _: str = Depends(get_current_user)) -> FxRate:
+    """Units of ``currency`` per 1 EUR: sizes shares from a EUR target amount."""
+    if not re.fullmatch(r"[A-Za-z]{3}", currency):
+        raise HTTPException(400, "Valuta non valida")
+    return fetch_eur_rate(currency)
 
 
 @app.get("/api/search")
@@ -994,6 +1010,7 @@ class PortfolioSave(BaseModel):
     holdings: list
     liquidita: float = 0.0
     inputMode: str = "pct"
+    portfolioTotal: float = 0.0  # EUR value of the whole portfolio (sizes % allocations)
     pac_entries: list = []
     savedAt: Optional[str] = None
 
@@ -1144,6 +1161,8 @@ class PerformanceHolding(BaseModel):
 class PerformanceRequest(BaseModel):
     holdings: List[PerformanceHolding]
     liquidita: float = 0.0
+    # EUR value of holdings without a Yahoo ticker (e.g. bonds): held flat in the chart.
+    unpriced_amount: float = 0.0
 
 
 @app.post("/api/portfolio/performance")
@@ -1152,8 +1171,9 @@ def portfolio_performance(req: PerformanceRequest, _: str = Depends(get_current_
 
     series_list = []
     covered_amount = 0.0
+    flat_amount = max(req.unpriced_amount, 0.0)
     failed_tickers: list[str] = []
-    total_submitted = sum(h.amount for h in req.holdings if h.amount and h.amount > 0)
+    total_submitted = sum(h.amount for h in req.holdings if h.amount and h.amount > 0) + flat_amount
 
     for h in req.holdings:
         if not h.amount or h.amount <= 0 or not h.yf_ticker:
@@ -1162,11 +1182,13 @@ def portfolio_performance(req: PerformanceRequest, _: str = Depends(get_current_
             hist = yf.Ticker(h.yf_ticker).history(period="1y")["Close"]
             if hist.empty or len(hist) < 5:
                 failed_tickers.append(h.yf_ticker)
+                flat_amount += h.amount
                 continue
             series_list.append(hist / hist.iloc[-1] * h.amount)
             covered_amount += h.amount
         except Exception:
             failed_tickers.append(h.yf_ticker)
+            flat_amount += h.amount
             continue
 
     covered_pct = round(covered_amount / total_submitted * 100, 1) if total_submitted > 0 else 100.0
@@ -1175,7 +1197,7 @@ def portfolio_performance(req: PerformanceRequest, _: str = Depends(get_current_
         return {"dates": [], "values": [], "return_pct": 0, "initial_value": 0, "current_value": 0,
                 "covered_pct": covered_pct, "failed_tickers": failed_tickers}
 
-    combined = pd.concat(series_list, axis=1).ffill().bfill().sum(axis=1) + req.liquidita
+    combined = pd.concat(series_list, axis=1).ffill().bfill().sum(axis=1) + req.liquidita + flat_amount
     initial  = float(combined.iloc[0])
     current  = float(combined.iloc[-1])
     return_pct = round((current / initial - 1) * 100, 2) if initial > 0 else 0

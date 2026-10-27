@@ -159,11 +159,24 @@ def test_performance_when_histories_then_value_series_and_return(client, auth_he
         "liquidita": 100,
     }
     res = client.post("/api/portfolio/performance", json=body, headers=auth_headers).json()
-    # amounts are today's values: AAA was worth 1000 at the start
-    assert res["initial_value"] == 1600 and res["current_value"] == 1700
-    assert res["return_pct"] == pytest.approx(6.25)
+    # amounts are today's values: AAA was worth 1000 at the start; EMPTY held flat at 400
+    assert res["initial_value"] == 2000 and res["current_value"] == 2100
+    assert res["return_pct"] == pytest.approx(5.0)
     assert res["covered_pct"] == 80.0 and res["failed_tickers"] == ["EMPTY"]
     assert len(res["dates"]) == len(res["values"]) == 10
+
+
+def test_performance_when_unpriced_amount_then_held_flat_in_total(client, auth_headers, monkeypatch):
+    idx = bdays(10)
+    monkeypatch.setattr(
+        main.yf,
+        "Ticker",
+        ticker_factory({"AAA": FakeTicker(history=pd.Series([100.0] * 10, index=idx))}),
+    )
+    body = {"holdings": [{"yf_ticker": "AAA", "amount": 1500}], "unpriced_amount": 4000}
+    res = client.post("/api/portfolio/performance", json=body, headers=auth_headers).json()
+    assert res["initial_value"] == res["current_value"] == 5500
+    assert res["covered_pct"] == pytest.approx(27.3)
 
 
 def test_performance_when_nothing_covered_then_empty_series(client, auth_headers, monkeypatch):

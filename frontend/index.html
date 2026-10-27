@@ -9,6 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <link rel="stylesheet" href="/static/css/style.css" />
+  <script src="/static/js/theme.js"></script>
   <style>
     /* ── Document import ── */
     .doc-import-section { margin-bottom: 18px; }
@@ -42,7 +43,7 @@
     .file-chip-rm { cursor: pointer; color: #f43f5e; font-size: 15px; line-height: 1; }
     /* ── Modal ── */
     .modal-overlay {
-      position: fixed; inset: 0; background: rgba(0,0,0,.75); z-index: 1000;
+      position: fixed; inset: 0; background: var(--overlay); backdrop-filter: blur(4px); z-index: 1000;
       display: flex; align-items: center; justify-content: center; padding: 16px;
     }
     .modal-overlay.hidden { display: none !important; }
@@ -120,6 +121,7 @@
         <a href="#analizza">Analizza</a>
         <a href="#superinvestitori">Superinvestitori</a>
         <a href="/analisi" id="navDeepAnalysis">Analisi approfondita</a>
+        <a href="/rendimenti">Rendimenti bond</a>
         <a href="#come-funziona">Come funziona</a>
         <a href="#faq">FAQ</a>
       </div>
@@ -235,6 +237,17 @@
               </tr>
             </tbody>
           </table>
+        </div>
+
+        <!-- Valore complessivo (solo modalità %): permette di ricavare importi e n. titoli -->
+        <div class="portfolio-total-row" id="portfolioTotalRow">
+          <label for="portfolioTotalInput">💼 Valore complessivo del portafoglio
+            <span class="hint">Con le percentuali serve per calcolare l'importo e il numero di titoli di ogni posizione</span>
+          </label>
+          <div class="pct-input-wrap">
+            <input type="number" id="portfolioTotalInput" min="0" step="100" placeholder="es. 50000" />
+            <span>EUR</span>
+          </div>
         </div>
 
         <!-- Liquidità + totale -->

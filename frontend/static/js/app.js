@@ -8,6 +8,15 @@ const API = '';
 // Session handling (token refresh, 30-minute inactivity expiry) lives in session.js.
 const apiFetch = (url, opts) => Session.apiFetch(url, opts);
 
+// Chart colors are read from the CSS theme tokens at draw time (scriptable
+// options), so a light/dark switch only needs a chart.update().
+const cssVar = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const themeMuted = () => cssVar('--muted');
+const themeGrid  = () => cssVar('--border2');
+window.addEventListener('themechange', () => {
+  [allocationChart, geoChart, perfChart].forEach(c => c && c.update('none'));
+});
+
 const CAT_COLORS = {
   'ETF Azionario':       '#8b5cf6',
   'ETF Obbligazionario': '#06b6d4',
@@ -61,6 +70,8 @@ let lastSearchData = null;
 let allocationChart = null;
 let geoChart = null;
 let inputMode = 'pct'; // 'pct' | 'amount'
+let portfolioTotal = 0; // EUR value of the whole portfolio, declared in 'pct' mode
+const fxPerEur = { EUR: 1 }; // currency → units per 1 EUR (null = unavailable)
 let baseCurrency = 'EUR';
 let _perfDataFull = null;
 let _perfExcluded = [];
@@ -80,11 +91,19 @@ const totalPctEl    = document.getElementById('totalPct');
 const dashboard     = document.getElementById('dashboard');
 const modeToggleBtn = document.getElementById('modeToggle');
 const allocHeader   = document.getElementById('allocHeader');
+const totalInp      = document.getElementById('portfolioTotalInput');
+const totalRow      = document.getElementById('portfolioTotalRow');
 
 // ── Mode toggle ──────────────────────────────
 modeToggleBtn.addEventListener('click', () => {
   const liqUnit = document.getElementById('liquiditaUnit');
+  const liqVal = parseFloat(liquiditaInp.value || 0);
   if (inputMode === 'pct') {
+    // % → EUR: with a declared total, positions and cash keep their value.
+    if (portfolioTotal > 0) {
+      portfolio.forEach(h => { h.amount = round2(portfolioTotal * (h.allocation || 0) / 100); });
+      liquiditaInp.value = round2(portfolioTotal * liqVal / 100);
+    }
     inputMode = 'amount';
     modeToggleBtn.textContent = '% Inserisci percentuali';
     modeToggleBtn.classList.add('mode-amount-active');
@@ -94,6 +113,12 @@ modeToggleBtn.addEventListener('click', () => {
     liquiditaInp.removeAttribute('max');
     liquiditaInp.step = '100';
   } else {
+    // EUR → %: the amounts' sum becomes the declared total.
+    const totalAmt = portfolio.reduce((s, h) => s + (parseFloat(h.amount) || 0), 0) + liqVal;
+    if (totalAmt > 0) {
+      setPortfolioTotal(totalAmt);
+      liquiditaInp.value = round2(liqVal / totalAmt * 100);
+    }
     inputMode = 'pct';
     modeToggleBtn.textContent = `${baseCurrency} Inserisci importi`;
     modeToggleBtn.classList.remove('mode-amount-active');
@@ -106,6 +131,60 @@ modeToggleBtn.addEventListener('click', () => {
   renderTable();
   updateTotal();
 });
+
+// ── Portfolio total (pct mode): % → EUR amount → number of shares ──
+const round2 = v => Math.round(v * 100) / 100;
+
+function setPortfolioTotal(v) {
+  portfolioTotal = v > 0 ? round2(v) : 0;
+  totalInp.value = portfolioTotal || '';
+}
+totalInp.addEventListener('input', () => {
+  portfolioTotal = parseFloat(totalInp.value) || 0;
+  updateTotal();
+});
+
+// Fetch (once) the EUR rate of every currency in the portfolio, then refresh the labels.
+async function ensureFxRates() {
+  const missing = [...new Set(portfolio.map(h => h.currency).filter(c => c && !(c in fxPerEur)))];
+  if (!missing.length) return;
+  missing.forEach(c => { fxPerEur[c] = undefined; });  // in flight: don't refetch
+  await Promise.all(missing.map(async c => {
+    try {
+      const res = await apiFetch(`${API}/api/fx/${encodeURIComponent(c)}`);
+      fxPerEur[c] = res.ok ? (await res.json()).per_eur : null;
+    } catch { fxPerEur[c] = null; }
+  }));
+  refreshDerived();
+}
+
+// Shares (or bond nominal) a EUR amount buys at the last known price, null if unknown.
+function sharesFor(h, amountEur) {
+  if (!(amountEur > 0) || !(h.price > 0)) return null;
+  const rate = h.currency ? fxPerEur[h.currency] : 1;
+  if (!(rate > 0)) return null;
+  const local = amountEur * rate;
+  return isBond(h) ? local / h.price * 100 : local / h.price;
+}
+
+function derivedLabel(h) {
+  if (inputMode !== 'pct' || !(portfolioTotal > 0)) return '';
+  const amt = portfolioTotal * (h.allocation || 0) / 100;
+  if (!(amt > 0)) return '';
+  const n = sharesFor(h, amt);
+  const fmtN = v => v.toLocaleString('it-IT', { maximumFractionDigits: v >= 100 ? 0 : 2 });
+  const shares = n == null
+    ? (h.price > 0 && h.currency && fxPerEur[h.currency] === undefined ? ' · …' : '')
+    : isBond(h) ? ` · nominale ≈ ${fmtN(n)}` : ` · ≈ ${fmtN(n)} titoli`;
+  return `€ ${fmtAmt(amt)}${shares}`;
+}
+
+function refreshDerived() {
+  holdingsTbody.querySelectorAll('.holding-derived').forEach(el => {
+    const h = portfolio[+el.dataset.idx];
+    if (h) el.textContent = derivedLabel(h);
+  });
+}
 
 // ── Search ──────────────────────────────────
 searchBtn.addEventListener('click', doSearch);
@@ -354,6 +433,7 @@ function renderTable() {
           value="${inputVal}" data-idx="${i}" />
         <span style="color:var(--muted);font-size:12px"> ${isPct ? '%' : baseCurrency}</span>
         ${calcPct}
+        ${isPct ? `<span class="holding-derived" data-idx="${i}">${derivedLabel(h)}</span>` : ''}
       </td>
       <td><button class="btn-rm" data-idx="${i}">×</button></td>
     `;
@@ -398,9 +478,16 @@ function updateTotal() {
     totalPctEl.className = 'total-pct total-ok';
   } else {
     const tot = portfolio.reduce((s, h) => s + (parseFloat(h.allocation) || 0), 0) + liqVal;
-    totalPctEl.textContent = `Totale: ${tot.toFixed(1)}%`;
+    if (portfolioTotal > 0) {
+      portfolio.forEach(h => { h.amount = round2(portfolioTotal * (parseFloat(h.allocation) || 0) / 100); });
+      refreshDerived();
+      ensureFxRates();
+    }
+    totalPctEl.textContent = `Totale: ${tot.toFixed(1)}%`
+      + (portfolioTotal > 0 ? ` · € ${fmtAmt(portfolioTotal * tot / 100)}` : '');
     totalPctEl.className = 'total-pct ' + (Math.abs(tot - 100) < 0.5 ? 'total-ok' : 'total-warn');
   }
+  totalRow.classList.toggle('hidden', inputMode !== 'pct');
   analyzeBtn.disabled = portfolio.length === 0;
   document.getElementById('deepAnalysisBtn').disabled = portfolio.length === 0;
   const _sbg = document.getElementById('saveBtnGroup');
@@ -417,6 +504,7 @@ liquiditaInp.addEventListener('input', updateTotal);
 analyzeBtn.addEventListener('click', async () => {
   const liqVal = parseFloat(liquiditaInp.value || 0);
   let liquiditaPct = liqVal;
+  let liquiditaEur = inputMode === 'pct' ? portfolioTotal * liqVal / 100 : liqVal;
   if (inputMode === 'amount') {
     const totalAmt = portfolio.reduce((s, h) => s + (parseFloat(h.amount) || 0), 0) + liqVal;
     liquiditaPct = totalAmt > 0 ? (liqVal / totalAmt * 100) : 0;
@@ -457,11 +545,11 @@ analyzeBtn.addEventListener('click', async () => {
     const fixTer = h => (terMap[h.ticker] != null ? terMap[h.ticker] : (h.ter > 0 && h.ter <= 5 ? h.ter : null));
     const enrichedHoldings = body.holdings.map(h => ({ ...h, ter: fixTer(h) }));
     portfolio.forEach(h => { h.ter = fixTer(h); });  // persisted on the next "Salva"
-    renderDashboard(data, enrichedHoldings, liquiditaPct, liqVal);
+    renderDashboard(data, enrichedHoldings, liquiditaPct, liquiditaEur);
     dashboard.classList.remove('hidden');
     document.getElementById('portfolioSummaryCard').classList.remove('hidden');
     dashboard.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    fetchPerformance(enrichedHoldings, liqVal);
+    fetchPerformance(enrichedHoldings, liquiditaEur);
   } catch (e) {
     alert('Errore: ' + e.message);
   } finally {
@@ -498,6 +586,7 @@ demoBtn.addEventListener('click', () => {
 clearBtn.addEventListener('click', () => {
   portfolio = [];
   pac = [];
+  setPortfolioTotal(0);
   renderTable();
   updateTotal();
   renderPac();
@@ -530,7 +619,7 @@ function renderAllocationChart(catPct) {
   const ctx = document.getElementById('allocationChart').getContext('2d');
   allocationChart = new Chart(ctx, {
     type: 'doughnut',
-    data: { labels, datasets: [{ data: values, backgroundColor: colors, borderColor: '#161929', borderWidth: 3 }] },
+    data: { labels, datasets: [{ data: values, backgroundColor: colors, borderColor: () => cssVar('--card'), borderWidth: 3 }] },
     options: {
       cutout: '65%',
       plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed.toFixed(1)}%` } } },
@@ -589,7 +678,7 @@ function renderGeoChart(geo) {
       plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ` ${ctx.parsed.x.toFixed(1)}%` } } },
       scales: {
         x: { display: false, max: 105 },
-        y: { grid: { display: false }, ticks: { color: '#7880a0', font: { size: 11 } } },
+        y: { grid: { display: false }, ticks: { color: themeMuted, font: { size: 11 } } },
       },
     },
   });
@@ -704,6 +793,13 @@ async function fetchPerformance(holdings, liquidita) {
     return !h.yf_ticker || !hasAmt;
   });
 
+  // Holdings with an amount but no Yahoo ticker (e.g. bonds) are held flat in the chart
+  const unpricedAmount = excludedHoldings.reduce((sum, h) => {
+    if (h.amount > 0) return sum + h.amount;
+    if (h.quantity > 0 && h.purchase_price > 0) return sum + h.quantity * h.purchase_price;
+    return sum;
+  }, 0);
+
   if (!perfHoldings.length) {
     perfCard.classList.remove('hidden');
     document.getElementById('perfReturn').textContent = '';
@@ -723,7 +819,7 @@ async function fetchPerformance(holdings, liquidita) {
     const res  = await apiFetch(`${API}/api/portfolio/performance`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ holdings: perfHoldings, liquidita }),
+      body: JSON.stringify({ holdings: perfHoldings, liquidita, unpriced_amount: unpricedAmount }),
     });
     if (!res.ok) throw new Error();
     const data = await res.json();
@@ -786,8 +882,8 @@ function _renderPerfForPeriod(days) {
   ];
   const coverageNote = coveredPct < 99
     ? `<span style="color:var(--amber);font-size:11px">
-        Grafico basato su ${coveredPct}% del portafoglio
-        ${allExcluded.length ? `(esclusi: ${allExcluded.join(', ')} — dati non disponibili su Yahoo Finance)` : ''}
+        Andamento storico su ${coveredPct}% del portafoglio
+        ${allExcluded.length ? `(${allExcluded.join(', ')} a valore costante — storico non disponibile su Yahoo Finance)` : ''}
        </span>`
     : `<span style="color:var(--muted);font-size:11px">Basato su prezzi Yahoo Finance</span>`;
 
@@ -820,9 +916,9 @@ function _renderPerfForPeriod(days) {
         callbacks: { label: ctx => ` €${fmtAmt(ctx.parsed.y)}` },
       }},
       scales: {
-        x: { ticks: { maxTicksLimit: 8, color: '#7880a0', font: { size: 11 } }, grid: { color: '#1e2238' } },
-        y: { ticks: { color: '#7880a0', font: { size: 11 }, callback: v => '€' + fmtAmt(v) },
-             grid: { color: '#1e2238' } },
+        x: { ticks: { maxTicksLimit: 8, color: themeMuted, font: { size: 11 } }, grid: { color: themeGrid } },
+        y: { ticks: { color: themeMuted, font: { size: 11 }, callback: v => '€' + fmtAmt(v) },
+             grid: { color: themeGrid } },
       },
     },
   });
@@ -1154,6 +1250,7 @@ async function savePortfolio() {
     holdings:    portfolio,
     liquidita:   liqVal,
     inputMode,
+    portfolioTotal,
     pac_entries: pac,
     savedAt:     new Date().toISOString(),
   };
@@ -1179,6 +1276,7 @@ function openDeepAnalysis(e) {
       holdings:  portfolio,
       liquidita: parseFloat(liquiditaInp.value || 0),
       inputMode,
+      portfolioTotal,
       savedAt:   new Date().toISOString(),
     };
     try { localStorage.setItem('analysis_portfolio', JSON.stringify(snapshot)); } catch { /* storage full/blocked */ }
@@ -1259,8 +1357,10 @@ async function deletePortfolio(portfolioId, btn) {
 function applyLoadedPortfolio(data) {
   portfolio = data.holdings || [];
   pac = data.pac_entries || [];
-  liquiditaInp.value = data.liquidita ?? 0;
+  setPortfolioTotal(0);
   if ((data.inputMode || 'pct') !== inputMode) modeToggleBtn.click();
+  liquiditaInp.value = data.liquidita ?? 0;  // after the toggle: it is already in the saved unit
+  setPortfolioTotal(parseFloat(data.portfolioTotal) || 0);
   if (data.name && portfolioNameInput) portfolioNameInput.value = data.name;
   renderTable();
   updateTotal();

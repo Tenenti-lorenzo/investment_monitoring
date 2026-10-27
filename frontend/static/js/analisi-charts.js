@@ -6,11 +6,14 @@
 
 (function () {
   const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
-  const C = {
+  const C = {};
+  const readTokens = () => Object.assign(C, {
     s: [1, 2, 3, 4, 5, 6, 7, 8].map(i => css(`--series-${i}`)),
     good: css('--good'), critical: css('--critical'), context: css('--context'),
     grid: css('--grid'), muted: css('--muted'), surface: css('--card'),
-  };
+    tooltip: css('--tooltip-bg'), border: css('--border'),
+  });
+  readTokens();
   const alpha = (hex, a) => {
     const n = parseInt(hex.slice(1), 16);
     return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`;
@@ -31,14 +34,17 @@
   // Line dataset: legend swatch filled with the series color (Chart.js default is a gray box).
   const line = (label, data, color, extra = {}) => ({ label, data, borderColor: color, backgroundColor: color, ...extra });
 
-  Chart.defaults.color = C.muted;
+  function themeDefaults() {
+    Chart.defaults.color = C.muted;
+    Chart.defaults.borderColor = C.grid;
+    Chart.defaults.plugins.tooltip.backgroundColor = C.tooltip;
+    Chart.defaults.plugins.tooltip.borderColor = C.border;
+  }
+  themeDefaults();
   Chart.defaults.font.family = "'DM Sans', system-ui, sans-serif";
   Chart.defaults.font.size = 11;
-  Chart.defaults.borderColor = C.grid;
   Chart.defaults.plugins.legend.labels.boxWidth = 10;
   Chart.defaults.plugins.legend.labels.boxHeight = 10;
-  Chart.defaults.plugins.tooltip.backgroundColor = '#0b0d14';
-  Chart.defaults.plugins.tooltip.borderColor = '#252840';
   Chart.defaults.plugins.tooltip.borderWidth = 1;
   Chart.defaults.elements.line.borderWidth = 2;
   Chart.defaults.elements.point.radius = 0;
@@ -46,6 +52,12 @@
   Chart.defaults.elements.bar.borderRadius = 4;
 
   const charts = {};
+  // Theme switch: re-read the tokens and repaint the charts already on screen.
+  window.addEventListener('themechange', () => {
+    readTokens();
+    themeDefaults();
+    Object.values(charts).forEach(c => c.update('none'));
+  });
   function draw(id, config) {
     if (charts[id]) charts[id].destroy();
     const el = document.getElementById(id);

@@ -158,7 +158,7 @@ def classify_bond(items: list[dict], isin: str) -> BondInfo:
 
 # ── Sovereign risk via FRED ──────────────────────────────────────────────────
 
-def _fetch_latest_yield(iso2: str) -> tuple[Optional[float], Optional[str]]:
+def fetch_latest_10y_yield(iso2: str) -> tuple[Optional[float], Optional[str]]:
     """Latest non-missing 10Y yield (%) and its observation date for ``iso2``."""
     cached = _yield_cache.get(iso2)
     if cached and (time.time() - cached[1]) < _CACHE_TTL:
@@ -228,7 +228,7 @@ def fetch_sovereign_risk(iso2: str, currency: str = "") -> SovereignRisk:
     and a caveat is attached.
     """
     iso2 = (iso2 or "").upper()
-    y, as_of = _fetch_latest_yield(iso2)
+    y, as_of = fetch_latest_10y_yield(iso2)
     if y is None:
         return SovereignRisk(
             country=iso2,
@@ -237,7 +237,7 @@ def fetch_sovereign_risk(iso2: str, currency: str = "") -> SovereignRisk:
         )
 
     is_eur = currency == "EUR" or iso2 in _EUROZONE
-    bund, _ = _fetch_latest_yield(_BUND_COUNTRY)
+    bund, _ = fetch_latest_10y_yield(_BUND_COUNTRY)
     spread_bps = round((y - bund) * 100, 1) if bund is not None else None
 
     if is_eur and spread_bps is not None:

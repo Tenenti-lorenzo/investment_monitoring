@@ -12,21 +12,37 @@
     set-app-url   : Imposta APP_URL su Lambda dopo il primo deploy
     outputs       : Mostra gli output Terraform
 
+.PARAMETER Environment
+    prod (default) : workspace Terraform "default", nomi portfoliolab-*
+    dev            : workspace Terraform "dev" + terraform/env/dev.tfvars, nomi dev-portfoliolab-*
+
 .EXAMPLE
     .\deploy.ps1 first-deploy
     .\deploy.ps1 deploy
+    .\deploy.ps1 first-deploy -Environment dev
 #>
 param(
     [Parameter(Mandatory)]
     [ValidateSet("first-deploy","deploy","image-push","upload-static","tf-plan","tf-apply","set-app-url","outputs")]
-    [string]$Command
+    [string]$Command,
+
+    [ValidateSet("prod","dev")]
+    [string]$Environment = "prod"
 )
 
 $ErrorActionPreference = "Stop"
 
 if ($env:AWS_REGION) { $REGION = $env:AWS_REGION } else { $REGION = "eu-central-1" }
-$APP_NAME = "portfoliolab"
 $TF_DIR   = "terraform"
+if ($Environment -eq "prod") {
+    $APP_NAME     = "portfoliolab"
+    $TF_WORKSPACE = "default"
+    $TF_VAR_ARGS  = @()
+} else {
+    $APP_NAME     = "$Environment-portfoliolab"
+    $TF_WORKSPACE = $Environment
+    $TF_VAR_ARGS  = @("-var-file=env/$Environment.tfvars")
+}
 
 # Returns a terraform output value, empty string on failure.
 # Uses -no-color to strip ANSI codes, checks exit code.
@@ -47,6 +63,16 @@ function Assert-TfOutput([string]$name, [string]$hint) {
     return $val
 }
 
+# Each environment has its own Terraform workspace (= separate state file).
+function Select-TfWorkspace {
+    Push-Location $TF_DIR
+    terraform workspace select -or-create $TF_WORKSPACE | Out-Null
+    $code = $LASTEXITCODE
+    Pop-Location
+    if ($code -ne 0) { throw "terraform workspace select $TF_WORKSPACE fallito (esegui prima terraform init)" }
+    Write-Host "==> Ambiente: $Environment (workspace '$TF_WORKSPACE')" -ForegroundColor Cyan
+}
+
 function Invoke-TfInit {
     Write-Host ""
     Write-Host "==> terraform init" -ForegroundColor Cyan
@@ -60,9 +86,9 @@ function Invoke-TfInit {
 function Invoke-TfApply([string]$target = "") {
     Push-Location $TF_DIR
     if ($target -ne "") {
-        terraform apply -target $target -auto-approve
+        terraform apply @TF_VAR_ARGS -target $target -auto-approve
     } else {
-        terraform apply
+        terraform apply @TF_VAR_ARGS
     }
     $code = $LASTEXITCODE
     Pop-Location
@@ -114,23 +140,24 @@ function Invoke-UploadStatic {
     aws s3 cp frontend/index.html "s3://$bucket/index.html"
     aws s3 cp frontend/login.html "s3://$bucket/login.html"
     aws s3 cp frontend/analisi.html "s3://$bucket/analisi.html"
+    aws s3 cp frontend/rendimenti.html "s3://$bucket/rendimenti.html"
     Write-Host "    File caricati su s3://$bucket"
 }
 
 # ── Commands ──────────────────────────────────────────────────────────────────
 
+if ($Command -ne "first-deploy") { Select-TfWorkspace }
+
 switch ($Command) {
 
     "tf-plan" {
         Push-Location $TF_DIR
-        terraform plan
+        terraform plan @TF_VAR_ARGS
         Pop-Location
     }
 
     "tf-apply" {
-        Push-Location $TF_DIR
-        terraform apply
-        Pop-Location
+        Invoke-TfApply
     }
 
     "outputs" {
@@ -194,6 +221,7 @@ switch ($Command) {
 
         # Step 1: init + crea solo ECR
         Invoke-TfInit
+        Select-TfWorkspace
         Write-Host ""
         Write-Host "==> Creo ECR repository..." -ForegroundColor Cyan
         Invoke-TfApply "aws_ecr_repository.app"
@@ -218,7 +246,7 @@ switch ($Command) {
         Write-Host "========================================" -ForegroundColor Green
         Write-Host ""
         Write-Host "Prossimo passo:" -ForegroundColor Yellow
-        Write-Host "  1. Aggiungi questa riga a terraform/terraform.tfvars:" -ForegroundColor Yellow
+        Write-Host "  1. Aggiungi questa riga a terraform/$(if ($Environment -eq "prod") { "terraform.tfvars" } else { "env/$Environment.tfvars" }):" -ForegroundColor Yellow
         Write-Host "     app_url = `"$cfUrl`"" -ForegroundColor White
         Write-Host "  2. Esegui: .\deploy.ps1 set-app-url" -ForegroundColor Yellow
         Write-Host ""

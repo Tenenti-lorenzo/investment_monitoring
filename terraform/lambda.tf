@@ -96,7 +96,8 @@ resource "aws_lambda_function" "app" {
       },
       # APP_URL is set only after first deploy when CloudFront URL is known.
       # Leave empty on first apply; set in terraform.tfvars and re-apply.
-      var.app_url != "" ? { APP_URL = var.app_url } : {}
+      var.app_url != "" ? { APP_URL = var.app_url } : {},
+      var.ses_sender_email != "" ? { SES_SENDER = var.ses_sender_email } : {}
     )
   }
 

@@ -47,8 +47,14 @@ variable "app_url" {
     After first 'terraform apply', get the CloudFront URL from outputs,
     set it here, and re-apply so password-reset emails use the correct link.
   EOT
-  type    = string
-  default = ""
+  type        = string
+  default     = ""
+}
+
+variable "ses_sender_email" {
+  description = "Verified SES sender for password-reset emails. Empty = reset by email disabled (API answers 503)."
+  type        = string
+  default     = ""
 }
 
 variable "lambda_memory_mb" {

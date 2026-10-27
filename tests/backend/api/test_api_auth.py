@@ -30,6 +30,21 @@ def test_register_when_short_password_then_400(client):
 
 
 @pytest.mark.parametrize(
+    "fields",
+    [
+        {"username": "   "},
+        {"username": "ab"},
+        {"username": "mario rossi"},
+        {"email": "not-an-email"},
+        {"email": ""},
+    ],
+)
+def test_register_when_invalid_username_or_email_then_400(client, fake_db, fields):
+    assert register(client, **fields).status_code == 400
+    assert not fake_db.users
+
+
+@pytest.mark.parametrize(
     "second",
     [
         {"username": "mario", "email": "other@example.com"},
@@ -118,12 +133,32 @@ def test_forgot_when_unknown_email_then_generic_ok_without_link(client):
     assert res.status_code == 200 and "reset_url" not in res.json()
 
 
-def test_forgot_when_known_email_without_smtp_then_reset_link_and_token_saved(client, fake_db, monkeypatch):
-    monkeypatch.delenv("SMTP_HOST", raising=False)
+def test_forgot_when_dev_link_enabled_then_reset_link_and_token_saved(client, fake_db, monkeypatch):
+    monkeypatch.setenv("AUTH_DEV_RESET_LINK", "true")
     register(client)
     res = client.post("/api/auth/forgot-password", json={"email": "MARIO@example.com"})
     token = fake_db.users["mario"]["reset_token"]
     assert res.json()["reset_url"].endswith(f"/login?reset_token={token}")
+
+
+def test_forgot_when_no_email_transport_then_503_and_link_never_returned(client, monkeypatch):
+    for var in ("AUTH_DEV_RESET_LINK", "SES_SENDER", "SMTP_HOST"):
+        monkeypatch.delenv(var, raising=False)
+    register(client)
+    res = client.post("/api/auth/forgot-password", json={"email": "mario@example.com"})
+    assert res.status_code == 503
+    assert "reset_token" not in res.text and "reset_url" not in res.json()
+
+
+def test_forgot_when_email_sent_then_link_goes_only_to_account_mailbox(client, fake_db, monkeypatch):
+    monkeypatch.delenv("AUTH_DEV_RESET_LINK", raising=False)
+    sent: list[tuple[str, str]] = []
+    monkeypatch.setattr(main, "send_reset_email", lambda to, url: sent.append((to, url)) or True)
+    register(client)
+    res = client.post("/api/auth/forgot-password", json={"email": " MARIO@example.com "})
+    token = fake_db.users["mario"]["reset_token"]
+    assert res.status_code == 200 and "reset_url" not in res.json()
+    assert sent == [("mario@example.com", f"http://localhost:8000/login?reset_token={token}")]
 
 
 def test_reset_when_valid_token_then_password_changed_and_token_cleared(client, fake_db):

@@ -6,6 +6,7 @@ from fakes import FakeFundsData, FakeTicker, ticker_factory, top_holdings
 from backend import main
 from backend.bond_market import BondQuote
 from backend.bonds import SovereignRisk
+from backend.sovereign_yields import CountryYields, SovereignYieldsResponse, TenorYield
 
 ETF_ISIN = "IE00B4L5Y983"
 BTP_ISIN = "IT0005436693"
@@ -160,3 +161,21 @@ def test_bond_quote_when_invalid_isin_then_400(client, auth_headers):
 def test_bond_quote_when_not_listed_then_404(client, auth_headers, monkeypatch):
     monkeypatch.setattr(main, "fetch_bond_quote", lambda isin: None)
     assert client.get(f"/api/bond/quote/{BTP_ISIN}", headers=auth_headers).status_code == 404
+
+
+# ─── /api/bonds/sovereign-yields ──────────────────────────────────────────────
+
+
+def test_sovereign_yields_when_authenticated_then_snapshot(client, auth_headers, monkeypatch):
+    snapshot = SovereignYieldsResponse(
+        countries=[CountryYields(iso2="IT", iso_numeric="380", name="Italia", y10=TenorYield(yield_pct=3.9))],
+        fetched_at="2026-09-29T17:00:00Z",
+    )
+    monkeypatch.setattr(main, "fetch_sovereign_yields", lambda: snapshot)
+    res = client.get("/api/bonds/sovereign-yields", headers=auth_headers)
+    assert res.status_code == 200
+    assert res.json()["countries"][0]["y10"]["yield_pct"] == 3.9
+
+
+def test_sovereign_yields_when_anonymous_then_rejected(client):
+    assert client.get("/api/bonds/sovereign-yields").status_code in (401, 403)
