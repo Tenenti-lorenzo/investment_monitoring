@@ -219,7 +219,7 @@ def test_portfolios_when_other_user_then_not_visible(client, auth_headers):
     pid = client.post("/api/portfolio/save", json={"holdings": []}, headers=auth_headers).json()[
         "portfolio_id"
     ]
-    other = {"Authorization": f"Bearer {main._create_token('luigi')}"}
+    other = {"Authorization": f"Bearer {main._start_session('luigi')}"}
     assert client.get("/api/portfolio/list", headers=other).json() == []
     assert client.get(f"/api/portfolio/load/{pid}", headers=other).status_code == 404
 

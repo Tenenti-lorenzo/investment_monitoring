@@ -37,6 +37,13 @@ resource "aws_apigatewayv2_stage" "default" {
   name        = "$default"
   auto_deploy = true
 
+  # Account-wide ceiling for the whole API (not per client): caps cost and
+  # floods. Per-IP limits live in the WAF on CloudFront (waf.tf).
+  default_route_settings {
+    throttling_burst_limit = var.api_throttle_burst
+    throttling_rate_limit  = var.api_throttle_rate
+  }
+
   tags = {
     App = var.app_name
     Env = var.environment

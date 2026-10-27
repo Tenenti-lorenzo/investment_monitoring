@@ -225,7 +225,7 @@
           <input type="email" id="regEmail" autocomplete="email" placeholder="nome@esempio.com" />
         </div>
         <div class="form-group">
-          <label>Password <span class="hint">min. 6 caratteri</span></label>
+          <label>Password <span class="hint">min. 10 caratteri</span></label>
           <input type="password" id="regPassword" autocomplete="new-password" placeholder="••••••••" />
         </div>
         <div class="form-group">
@@ -253,7 +253,7 @@
     <div id="resetPanel" style="display:none">
       <div class="auth-logo" style="margin-bottom:12px;font-size:18px">Nuova password</div>
       <div class="form-group">
-        <label>Nuova password <span class="hint">min. 6 caratteri</span></label>
+        <label>Nuova password <span class="hint">min. 10 caratteri</span></label>
         <input type="password" id="resetPassword" autocomplete="new-password" placeholder="••••••••" />
       </div>
       <div class="form-group">
@@ -429,7 +429,7 @@
       const password2 = document.getElementById('regPassword2').value;
       if (!username || !email || !password) return setMsg('regMsg', 'Compila tutti i campi.', 'error');
       if (password !== password2) return setMsg('regMsg', 'Le password non coincidono.', 'error');
-      if (password.length < 6)   return setMsg('regMsg', 'Password troppo corta (min. 6 caratteri).', 'error');
+      if (password.length < 10)  return setMsg('regMsg', 'Password troppo corta (min. 10 caratteri).', 'error');
       const btn = document.getElementById('regBtn');
       btn.disabled = true; btn.textContent = '⏳ Registrazione…';
       try {
@@ -479,7 +479,7 @@
       const pw2 = document.getElementById('resetPassword2').value;
       if (!pw)          return setMsg('resetMsg', 'Inserisci la nuova password.', 'error');
       if (pw !== pw2)   return setMsg('resetMsg', 'Le password non coincidono.', 'error');
-      if (pw.length < 6) return setMsg('resetMsg', 'Password troppo corta (min. 6 caratteri).', 'error');
+      if (pw.length < 10) return setMsg('resetMsg', 'Password troppo corta (min. 10 caratteri).', 'error');
       const btn = document.getElementById('resetBtn');
       btn.disabled = true; btn.textContent = '⏳ Salvataggio…';
       try {

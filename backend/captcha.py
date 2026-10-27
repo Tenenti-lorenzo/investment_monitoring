@@ -5,9 +5,9 @@ The browser gets an invisible token per action (``login``, ``register``,
 Google's ``siteverify`` API and rejects low scores.
 
 Enabled when ``RECAPTCHA_SECRET`` is set (in AWS it comes from Secrets
-Manager). Without it, verification is skipped so local dev and tests work
-unchanged; a warning is logged at import so a misconfigured deploy is visible.
-Verification fails closed: a Google outage blocks sign-ups rather than bots.
+Manager). Locally, without it, verification is skipped so dev and tests work
+unchanged. On AWS Lambda a missing secret is a misconfiguration and every
+check fails (closed), as does a Google outage: bots are never let through.
 """
 from __future__ import annotations
 
@@ -43,6 +43,10 @@ def captcha_enabled() -> bool:
     return bool(os.getenv("RECAPTCHA_SECRET"))
 
 
+def _on_aws() -> bool:
+    return bool(os.getenv("AWS_LAMBDA_FUNCTION_NAME"))
+
+
 def public_config() -> CaptchaConfig:
     site_key = os.getenv("RECAPTCHA_SITE_KEY") or None
     return CaptchaConfig(recaptcha_site_key=site_key if captcha_enabled() else None)
@@ -76,6 +80,9 @@ def verify_captcha(token: str, action: str) -> bool:
         action: Expected action name; a token minted for another action is rejected.
     """
     if not captcha_enabled():
+        if _on_aws():
+            logger.error("RECAPTCHA_SECRET missing on AWS: rejecting %s (fail closed)", action)
+            return False
         return True
     if not token:
         return False
@@ -89,4 +96,7 @@ def verify_captcha(token: str, action: str) -> bool:
 
 
 if not captcha_enabled():
-    logger.warning("RECAPTCHA_SECRET not set: bot protection on auth endpoints is disabled")
+    if _on_aws():
+        logger.error("RECAPTCHA_SECRET not set: login, sign-up and password reset will be rejected")
+    else:
+        logger.warning("RECAPTCHA_SECRET not set: bot protection disabled (local development)")

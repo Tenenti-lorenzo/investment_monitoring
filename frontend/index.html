@@ -141,7 +141,7 @@
   </nav>
   <script src="/static/js/session.js"></script>
   <script>
-    // Auth guard — runs before anything else (30-minute inactivity expiry)
+    // Auth guard — runs before anything else (15-minute inactivity expiry)
     (function() {
       Session.guard();
       const u = localStorage.getItem('auth_username');

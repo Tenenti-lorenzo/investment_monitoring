@@ -21,11 +21,14 @@ accorgersi dei cambiamenti.
 
 | Variabile | Default | Scopo |
 | --- | --- | --- |
-| `SECRET_KEY` | `change-me-in-production...` | Firma JWT (HS256) |
+| `SECRET_KEY` | — (in locale: casuale) | Firma JWT (HS256). Su AWS deve avere almeno 32 caratteri, altrimenti l'app non parte |
 | `SECRETS_ARN` | — | Se presente, attiva il fetch da Secrets Manager |
 | `AWS_REGION` / `AWS_DEFAULT_REGION` | `eu-central-1` | Region boto3 |
 | `DYNAMODB_TABLE` | `portfoliolab_users` | Tabella utenti |
 | `DYNAMODB_PORTFOLIOS_TABLE` | `portfoliolab_portfolios` | Tabella portafogli |
+| `DYNAMODB_SESSIONS_TABLE` | `portfoliolab_sessions` | Sessioni di login (TTL su `expires_at`) |
+| `RECAPTCHA_SECRET` / `RECAPTCHA_SITE_KEY` / `RECAPTCHA_MIN_SCORE` | — / — / `0.5` | reCAPTCHA v3 su login, registrazione e reset. Su AWS senza secret le richieste vengono rifiutate |
+| `BCRYPT_ROUNDS` | `12` | Costo bcrypt (i test usano 4) |
 | `ANTHROPIC_API_KEY` | — | API key Claude (da Secrets Manager o `.env`) |
 | `ANTHROPIC_MODEL` | `claude-sonnet-4-6` | Modello usato per l'estrazione |
 | `FRED_API_KEY` | — | Rischio sovrano delle obbligazioni; senza chiave il livello e' `N/D` |

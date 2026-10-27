@@ -16,6 +16,12 @@ provider "aws" {
   region = var.aws_region
 }
 
+# WAF for CloudFront must live in us-east-1 (waf.tf).
+provider "aws" {
+  alias  = "us_east_1"
+  region = "us-east-1"
+}
+
 resource "random_id" "suffix" {
   byte_length = 4
 }

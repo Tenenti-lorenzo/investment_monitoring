@@ -39,10 +39,13 @@ resource "aws_iam_role_policy" "dynamodb" {
         "dynamodb:Query",
         "dynamodb:Scan",
         "dynamodb:DescribeTable",
+        "dynamodb:BatchWriteItem",
       ]
       Resource = [
         aws_dynamodb_table.users.arn,
+        "${aws_dynamodb_table.users.arn}/index/*",
         aws_dynamodb_table.portfolios.arn,
+        aws_dynamodb_table.sessions.arn,
       ]
     }]
   })
@@ -93,12 +96,13 @@ resource "aws_lambda_function" "app" {
         ANTHROPIC_MODEL           = var.anthropic_model
         DYNAMODB_TABLE            = aws_dynamodb_table.users.name
         DYNAMODB_PORTFOLIOS_TABLE = aws_dynamodb_table.portfolios.name
+        DYNAMODB_SESSIONS_TABLE   = aws_dynamodb_table.sessions.name
       },
       # APP_URL is set only after first deploy when CloudFront URL is known.
       # Leave empty on first apply; set in terraform.tfvars and re-apply.
       var.app_url != "" ? { APP_URL = var.app_url } : {},
       var.ses_sender_email != "" ? { SES_SENDER = var.ses_sender_email } : {},
-      var.recaptcha_site_key != "" ? { RECAPTCHA_SITE_KEY = var.recaptcha_site_key } : {}
+      { RECAPTCHA_SITE_KEY = var.recaptcha_site_key }
     )
   }
 

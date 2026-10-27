@@ -15,6 +15,9 @@ import io
 import json
 import base64
 import secrets
+import hashlib
+import logging
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from dotenv import load_dotenv
@@ -43,7 +46,7 @@ from backend.sovereign_yields import SovereignYieldsResponse, fetch_sovereign_yi
 from backend.analysis_models import DeepAnalysisRequest, DeepAnalysisResponse, LookThroughResponse
 from backend.deep_analysis import run_deep_analysis
 from backend.captcha import CaptchaConfig, public_config, verify_captcha
-from backend.exceptions import InsufficientDataError
+from backend.exceptions import ConfigurationError, InsufficientDataError
 from backend.fx_rates import FxRate, fetch_eur_rate
 from backend.password_reset_email import dev_reset_link_enabled, send_reset_email
 from backend.look_through import run_look_through
@@ -65,17 +68,53 @@ from backend.database import (
     create_user,
     set_reset_token,
     set_password,
+    register_failed_login,
+    clear_failed_logins,
     save_portfolio_dynamo,
     list_portfolios_dynamo,
     load_portfolio_dynamo,
     delete_portfolio_dynamo,
 )
+from backend.session_store import (
+    create_session,
+    get_session,
+    rotate_session,
+    delete_session,
+    delete_user_sessions,
+)
 
-SECRET_KEY = os.getenv("SECRET_KEY", "change-me-in-production-use-a-long-random-string")
-# Sliding session: every authenticated call returns a fresh token in REFRESH_HEADER,
-# so the session only expires after this many minutes of inactivity.
-TOKEN_EXPIRE_MINUTES = 30
+logger = logging.getLogger(__name__)
+
+_MIN_SECRET_LEN = 32
+
+
+def _load_secret_key() -> str:
+    """JWT signing key. On AWS a missing or weak key aborts startup: with a guessable
+    key anyone could mint a token for any user."""
+    key = os.getenv("SECRET_KEY", "")
+    if len(key) >= _MIN_SECRET_LEN:
+        return key
+    if os.getenv("AWS_LAMBDA_FUNCTION_NAME"):
+        raise ConfigurationError(f"SECRET_KEY missing or shorter than {_MIN_SECRET_LEN} chars: refusing to start")
+    if key:
+        logger.warning("SECRET_KEY shorter than %d chars: acceptable only for local development", _MIN_SECRET_LEN)
+        return key
+    logger.warning("SECRET_KEY not set: using a random key, sessions end when the server restarts")
+    return secrets.token_urlsafe(48)
+
+
+SECRET_KEY = _load_secret_key()
+# Rotating session: every authenticated call returns a new token in REFRESH_HEADER and
+# invalidates the previous one; the session ends after this many minutes without activity.
+TOKEN_EXPIRE_MINUTES = 15
+ROTATION_GRACE_SECONDS = 30  # parallel requests may still carry a token just replaced
+MAX_RETIRED_TOKENS = 5
 REFRESH_HEADER = "X-Refreshed-Token"
+
+MIN_PASSWORD_LEN = 10
+MAX_FAILED_LOGINS = 5
+LOCK_MINUTES = 15
+BCRYPT_ROUNDS = int(os.getenv("BCRYPT_ROUNDS", "12"))
 
 _http_bearer = HTTPBearer()
 
@@ -115,28 +154,68 @@ if frontend_path.exists():
 # ─── Auth helpers ────────────────────────────────────────────────────────────
 
 def _hash_pw(pw: str) -> str:
-    return _bcrypt_lib.hashpw(pw.encode()[:72], _bcrypt_lib.gensalt(rounds=10)).decode()
+    return _bcrypt_lib.hashpw(pw.encode()[:72], _bcrypt_lib.gensalt(rounds=BCRYPT_ROUNDS)).decode()
 
 def _verify_pw(plain: str, hashed: str) -> bool:
     return _bcrypt_lib.checkpw(plain.encode()[:72], hashed.encode())
 
-def _create_token(username: str) -> str:
-    exp = datetime.now(timezone.utc) + timedelta(minutes=TOKEN_EXPIRE_MINUTES)
-    return jwt.encode({"sub": username, "exp": exp}, SECRET_KEY, algorithm="HS256")
+# Checked against unknown usernames so a failed login always costs one bcrypt.
+_DUMMY_HASH = _hash_pw(secrets.token_urlsafe(16))
+
+def _hash_reset_token(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+def _sign_token(username: str, sid: str, jti: str) -> str:
+    now = datetime.now(timezone.utc)
+    claims = {"sub": username, "sid": sid, "jti": jti, "iat": now, "exp": now + timedelta(minutes=TOKEN_EXPIRE_MINUTES)}
+    return jwt.encode(claims, SECRET_KEY, algorithm="HS256")
+
+def _start_session(username: str) -> str:
+    """Open a server-side session and return its first token."""
+    sid, jti = secrets.token_urlsafe(16), secrets.token_urlsafe(16)
+    create_session(username, sid, jti, int(time.time()) + TOKEN_EXPIRE_MINUTES * 60)
+    return _sign_token(username, sid, jti)
+
+def _decode_claims(token: str) -> tuple[str, str, str]:
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+    except JWTError:
+        raise HTTPException(401, "Sessione scaduta, effettua di nuovo il login")
+    username, sid, jti = payload.get("sub", ""), payload.get("sid", ""), payload.get("jti", "")
+    if not (username and sid and jti):
+        raise HTTPException(401, "Token non valido")
+    return username, sid, jti
 
 def get_current_user(
     response: Response,
     credentials: HTTPAuthorizationCredentials = Depends(_http_bearer),
 ) -> str:
-    try:
-        payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=["HS256"])
-    except JWTError:
+    """Authenticate and rotate: the presented token is replaced by a new one.
+
+    A superseded token is accepted only inside the short grace window; any later
+    use means it was copied, so the whole session is revoked.
+    """
+    username, sid, jti = _decode_claims(credentials.credentials)
+    now = int(time.time())
+    session = get_session(username, sid)
+    if not session or session["expires_at"] <= now:
         raise HTTPException(401, "Sessione scaduta, effettua di nuovo il login")
-    username: str = payload.get("sub", "")
-    if not username:
-        raise HTTPException(401, "Token non valido")
-    response.headers[REFRESH_HEADER] = _create_token(username)
-    return username
+    if jti == session["jti"]:
+        new_jti = secrets.token_urlsafe(16)
+        still_valid = [r for r in session["retired"] if r["until"] >= now]
+        retired = [{"jti": jti, "until": now + ROTATION_GRACE_SECONDS}, *still_valid][:MAX_RETIRED_TOKENS]
+        if rotate_session(username, sid, jti, new_jti, retired, now + TOKEN_EXPIRE_MINUTES * 60):
+            response.headers[REFRESH_HEADER] = _sign_token(username, sid, new_jti)
+            return username
+        session = get_session(username, sid)  # a parallel request rotated it first
+        if not session:
+            raise HTTPException(401, "Sessione scaduta, effettua di nuovo il login")
+    if any(r["jti"] == jti and r["until"] >= now for r in session["retired"]):
+        response.headers[REFRESH_HEADER] = _sign_token(username, sid, session["jti"])
+        return username
+    logger.warning("Superseded session token replayed for %s: session revoked", username)
+    delete_session(username, sid)
+    raise HTTPException(401, "Sessione non più valida, effettua di nuovo il login")
 
 
 # ─── Auth models ─────────────────────────────────────────────────────────────
@@ -187,37 +266,70 @@ def auth_register(req: RegisterRequest):
         raise HTTPException(400, "Username non valido: 3-40 caratteri tra lettere, numeri, . _ -")
     if not _EMAIL_RE.match(email):
         raise HTTPException(400, "Indirizzo email non valido")
-    if len(req.password) < 6:
-        raise HTTPException(400, "La password deve avere almeno 6 caratteri")
+    _check_password_strength(req.password)
     hashed = _hash_pw(req.password)
     try:
         create_user(username, email, hashed)
     except ValueError:
         raise HTTPException(400, "Username o email già in uso")
-    token = _create_token(username)
-    return {"status": "ok", "token": token, "username": username}
+    return {"status": "ok", "token": _start_session(username), "username": username}
+
+
+def _check_password_strength(pw: str) -> None:
+    if len(pw) < MIN_PASSWORD_LEN:
+        raise HTTPException(400, f"La password deve avere almeno {MIN_PASSWORD_LEN} caratteri")
+
+
+def _locked_out(until_iso: str) -> HTTPException:
+    left = datetime.fromisoformat(until_iso) - datetime.now(timezone.utc)
+    minutes = max(1, math.ceil(left.total_seconds() / 60))
+    return HTTPException(429, f"Troppi tentativi falliti. Account bloccato, riprova tra {minutes} minuti.")
 
 
 @app.post("/api/auth/login")
 def auth_login(req: LoginRequest):
     _require_human(req.captcha_token, "login")
-    user = get_user_by_username(req.username.strip())
-    if not user or not _verify_pw(req.password, user["hashed_password"]):
+    username = req.username.strip()
+    user = get_user_by_username(username)
+    if not user:
+        _verify_pw(req.password, _DUMMY_HASH)  # same cost as a real check: no timing oracle
         raise HTTPException(401, "Credenziali non valide")
-    return {"token": _create_token(req.username.strip()), "username": req.username.strip()}
+    lock_until = user.get("lock_until")
+    if lock_until and datetime.fromisoformat(lock_until) > datetime.now(timezone.utc):
+        raise _locked_out(lock_until)
+    if not _verify_pw(req.password, user["hashed_password"]):
+        new_lock = register_failed_login(username, MAX_FAILED_LOGINS, LOCK_MINUTES)
+        if new_lock:
+            raise _locked_out(new_lock)
+        raise HTTPException(401, "Credenziali non valide")
+    if user.get("failed_logins") or lock_until:
+        clear_failed_logins(username)
+    return {"token": _start_session(username), "username": username}
+
+
+@app.post("/api/auth/logout")
+def auth_logout(credentials: HTTPAuthorizationCredentials = Depends(_http_bearer)):
+    """Revoke the session server-side (the token stops working immediately)."""
+    try:
+        username, sid, _ = _decode_claims(credentials.credentials)
+    except HTTPException:
+        return {"status": "ok"}  # already expired / invalid: nothing to revoke
+    delete_session(username, sid)
+    return {"status": "ok"}
 
 
 @app.post("/api/auth/forgot-password")
 def auth_forgot_password(req: ForgotRequest):
     _require_human(req.captcha_token, "forgot")
     user = get_user_by_email(req.email.strip().lower())
-    # Always return OK to avoid revealing whether the email is registered
+    # Same answer whatever happens next: it must not reveal whether the email is registered.
+    generic = {"status": "ok", "message": "Se l'email è registrata riceverai a breve un link per reimpostare la password."}
     if not user:
-        return {"status": "ok", "message": "Se l'email è registrata riceverai le istruzioni."}
+        return generic
 
     token = secrets.token_urlsafe(32)
     expires = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
-    set_reset_token(user["username"], token, expires)
+    set_reset_token(user["username"], _hash_reset_token(token), expires)
 
     app_url = os.getenv("APP_URL", "http://localhost:8000")
     reset_url = f"{app_url}/login?reset_token={token}"
@@ -230,22 +342,22 @@ def auth_forgot_password(req: ForgotRequest):
             "reset_url": reset_url,
             "message": "Modalità sviluppo: usa il link qui sotto per reimpostare la password.",
         }
-    if send_reset_email(user["email"], reset_url):
-        return {"status": "ok", "message": "Email inviata. Controlla la tua casella di posta."}
-    raise HTTPException(503, "Invio email non disponibile al momento. Riprova più tardi.")
+    if not send_reset_email(user["email"], reset_url):
+        logger.error("Password-reset email not delivered for user %s", user["username"])
+    return generic
 
 
 @app.post("/api/auth/reset-password")
 def auth_reset_password(req: ResetRequest):
-    user = get_user_by_reset_token(req.token)
+    user = get_user_by_reset_token(_hash_reset_token(req.token))
     if not user:
         raise HTTPException(400, "Token non valido")
     expires = datetime.fromisoformat(user["reset_token_expires"])
     if datetime.now(timezone.utc) > expires:
         raise HTTPException(400, "Token scaduto. Richiedi un nuovo link di recupero.")
-    if len(req.new_password) < 6:
-        raise HTTPException(400, "La password deve avere almeno 6 caratteri")
+    _check_password_strength(req.new_password)
     set_password(user["username"], _hash_pw(req.new_password))
+    delete_user_sessions(user["username"])  # a thief's open session dies with the old password
     return {"status": "ok", "message": "Password reimpostata con successo."}
 
 

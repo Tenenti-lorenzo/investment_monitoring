@@ -8,7 +8,8 @@ import os
 
 os.environ["SECRETS_ARN"] = ""  # load_dotenv() never overrides an existing var
 os.environ["RECAPTCHA_SECRET"] = ""  # captcha off unless a test enables it
-os.environ.setdefault("SECRET_KEY", "test-secret-key")
+os.environ.setdefault("SECRET_KEY", "test-secret-key-at-least-32-characters")
+os.environ["BCRYPT_ROUNDS"] = "4"  # production uses 12; tests only need a valid hash
 
 import backend.database as database  # noqa: E402
 
@@ -29,6 +30,13 @@ _DB_FUNCS = (
     "create_user",
     "set_reset_token",
     "set_password",
+    "register_failed_login",
+    "clear_failed_logins",
+    "create_session",
+    "get_session",
+    "rotate_session",
+    "delete_session",
+    "delete_user_sessions",
     "save_portfolio_dynamo",
     "list_portfolios_dynamo",
     "load_portfolio_dynamo",
@@ -75,5 +83,6 @@ def client(fake_db: FakeDB) -> TestClient:
 
 
 @pytest.fixture
-def auth_headers() -> dict[str, str]:
-    return {"Authorization": f"Bearer {main._create_token('mario')}"}
+def auth_headers(fake_db: FakeDB) -> dict[str, str]:
+    """Bearer token of an open session for 'mario' (the user row itself is not created)."""
+    return {"Authorization": f"Bearer {main._start_session('mario')}"}

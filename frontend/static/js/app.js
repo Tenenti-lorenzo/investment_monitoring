@@ -5,7 +5,7 @@
 const API = '';
 
 // ── Auth helpers ─────────────────────────────
-// Session handling (token refresh, 30-minute inactivity expiry) lives in session.js.
+// Session handling (rotating token, 15-minute inactivity expiry) lives in session.js.
 const apiFetch = (url, opts) => Session.apiFetch(url, opts);
 
 // Chart colors are read from the CSS theme tokens at draw time (scriptable

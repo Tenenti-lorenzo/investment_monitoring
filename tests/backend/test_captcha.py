@@ -62,8 +62,8 @@ def test_api_config_when_enabled_then_exposes_only_site_key(client, captcha_on):
 @pytest.mark.parametrize(
     "path,body",
     [
-        ("/api/auth/register", {"username": "mario", "email": "m@example.com", "password": "secret1"}),
-        ("/api/auth/login", {"username": "mario", "password": "secret1"}),
+        ("/api/auth/register", {"username": "mario", "email": "m@example.com", "password": "correct-horse-1"}),
+        ("/api/auth/login", {"username": "mario", "password": "correct-horse-1"}),
         ("/api/auth/forgot-password", {"email": "m@example.com"}),
     ],
 )
@@ -74,6 +74,12 @@ def test_auth_when_captcha_missing_or_bot_then_403(client, fake_db, captcha_on, 
 
 
 def test_register_when_human_token_then_account_created(client, fake_db, captcha_on):
-    body = {"username": "mario", "email": "m@example.com", "password": "secret1", "captcha_token": "human-register"}
+    body = {"username": "mario", "email": "m@example.com", "password": "correct-horse-1", "captcha_token": "human-register"}
     assert client.post("/api/auth/register", json=body).status_code == 200
     assert "mario" in fake_db.users
+
+
+def test_verify_when_secret_missing_on_aws_then_fails_closed(monkeypatch):
+    monkeypatch.delenv("RECAPTCHA_SECRET", raising=False)
+    monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "portfoliolab")
+    assert captcha.verify_captcha("anything", "login") is False

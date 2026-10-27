@@ -1,5 +1,6 @@
-"""/api/auth/* and JWT protection."""
+"""/api/auth/*, rotating sessions, lockout and password reset."""
 
+import time
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -7,26 +8,45 @@ from jose import jwt
 
 from backend import main
 
+PASSWORD = "correct-horse-1"
 
-def register(client, username="mario", email="mario@example.com", password="secret1"):
+
+def register(client, username="mario", email="mario@example.com", password=PASSWORD):
     return client.post(
         "/api/auth/register", json={"username": username, "email": email, "password": password}
     )
 
 
-def test_register_when_valid_then_token_and_user_stored(client, fake_db):
+def login(client, username="mario", password=PASSWORD):
+    return client.post("/api/auth/login", json={"username": username, "password": password})
+
+
+def bearer(token: str) -> dict[str, str]:
+    return {"Authorization": f"Bearer {token}"}
+
+
+def claims(token: str) -> dict:
+    return jwt.decode(token, main.SECRET_KEY, algorithms=["HS256"])
+
+
+# ─── Registration ─────────────────────────────────────────────────────────────
+
+
+def test_register_when_valid_then_session_token_and_user_stored(client, fake_db):
     res = register(client, username="  mario ", email=" Mario@Example.com ")
     assert res.status_code == 200
     body = res.json()
-    assert body["username"] == "mario" and body["token"]
-    assert jwt.decode(body["token"], main.SECRET_KEY, algorithms=["HS256"])["sub"] == "mario"
+    assert body["username"] == "mario"
+    c = claims(body["token"])
+    assert c["sub"] == "mario" and ("mario", c["sid"]) in fake_db.sessions
     user = fake_db.users["mario"]
     assert user["email"] == "mario@example.com"
-    assert user["hashed_password"] != "secret1"  # bcrypt hash, never plain text
+    assert user["hashed_password"] != PASSWORD  # bcrypt hash, never plain text
 
 
-def test_register_when_short_password_then_400(client):
-    assert register(client, password="12345").status_code == 400
+def test_register_when_password_shorter_than_10_then_400(client, fake_db):
+    assert register(client, password="123456789").status_code == 400
+    assert not fake_db.users
 
 
 @pytest.mark.parametrize(
@@ -56,17 +76,105 @@ def test_register_when_username_or_email_taken_then_400(client, second):
     assert register(client, **second).status_code == 400
 
 
+# ─── Login & lockout ──────────────────────────────────────────────────────────
+
+
 def test_login_when_credentials_valid_then_token(client):
     register(client)
-    res = client.post("/api/auth/login", json={"username": "mario", "password": "secret1"})
+    res = login(client)
     assert res.status_code == 200 and res.json()["username"] == "mario"
 
 
-@pytest.mark.parametrize("username,password", [("mario", "wrong!"), ("ghost", "secret1")])
+@pytest.mark.parametrize("username,password", [("mario", "wrong-password"), ("ghost", PASSWORD)])
 def test_login_when_wrong_password_or_unknown_user_then_401(client, username, password):
     register(client)
-    res = client.post("/api/auth/login", json={"username": username, "password": password})
-    assert res.status_code == 401
+    assert login(client, username, password).status_code == 401
+
+
+def test_login_when_unknown_user_then_bcrypt_still_runs(client, monkeypatch):
+    checked: list[str] = []
+    real = main._verify_pw
+    monkeypatch.setattr(main, "_verify_pw", lambda p, h: checked.append(h) or real(p, h))
+    assert login(client, "ghost").status_code == 401
+    assert checked == [main._DUMMY_HASH]  # no timing shortcut for unknown usernames
+
+
+def test_login_when_5_wrong_passwords_then_locked_even_with_right_one(client, fake_db):
+    register(client)
+    codes = [login(client, password="wrong-password").status_code for _ in range(main.MAX_FAILED_LOGINS)]
+    assert codes == [401] * (main.MAX_FAILED_LOGINS - 1) + [429]
+    res = login(client)
+    assert res.status_code == 429 and "riprova tra 15 minuti" in res.json()["detail"]
+
+
+def test_login_when_lock_expired_then_ok_and_counter_cleared(client, fake_db):
+    register(client)
+    fake_db.users["mario"].update(failed_logins=3, lock_until=(datetime.now(UTC) - timedelta(minutes=1)).isoformat())
+    assert login(client).status_code == 200
+    assert "failed_logins" not in fake_db.users["mario"] and "lock_until" not in fake_db.users["mario"]
+
+
+# ─── Rotating session ─────────────────────────────────────────────────────────
+
+
+def test_session_token_when_issued_then_expires_in_15_minutes(client):
+    register(client)
+    left = datetime.fromtimestamp(claims(login(client).json()["token"])["exp"], UTC) - datetime.now(UTC)
+    assert timedelta(minutes=14) < left <= timedelta(minutes=15)
+
+
+def test_protected_when_token_used_then_rotated_to_new_15_minute_token(client, fake_db):
+    register(client)
+    t0 = login(client).json()["token"]
+    res = client.get("/api/auth/me", headers=bearer(t0))
+    t1 = res.headers[main.REFRESH_HEADER]
+    assert res.status_code == 200
+    assert claims(t1)["sid"] == claims(t0)["sid"] and claims(t1)["jti"] != claims(t0)["jti"]
+    session = fake_db.sessions[("mario", claims(t0)["sid"])]
+    assert session["jti"] == claims(t1)["jti"]
+    assert session["expires_at"] - time.time() > 14 * 60  # activity resets the 15-minute idle timer
+
+
+def test_protected_when_parallel_request_uses_just_replaced_token_then_accepted(client):
+    register(client)
+    t0 = login(client).json()["token"]
+    t1 = client.get("/api/auth/me", headers=bearer(t0)).headers[main.REFRESH_HEADER]
+    res = client.get("/api/auth/me", headers=bearer(t0))  # inside the grace window
+    assert res.status_code == 200
+    assert claims(res.headers[main.REFRESH_HEADER])["jti"] == claims(t1)["jti"]
+
+
+def test_protected_when_slow_request_carries_token_two_rotations_old_then_accepted(client):
+    register(client)
+    t0 = login(client).json()["token"]
+    t1 = client.get("/api/auth/me", headers=bearer(t0)).headers[main.REFRESH_HEADER]
+    t2 = client.get("/api/auth/me", headers=bearer(t1)).headers[main.REFRESH_HEADER]
+    res = client.get("/api/auth/me", headers=bearer(t0))
+    assert res.status_code == 200 and claims(res.headers[main.REFRESH_HEADER])["jti"] == claims(t2)["jti"]
+
+
+def test_protected_when_replaced_token_replayed_after_grace_then_session_revoked(client, fake_db):
+    register(client)
+    t0 = login(client).json()["token"]
+    t1 = client.get("/api/auth/me", headers=bearer(t0)).headers[main.REFRESH_HEADER]
+    for r in fake_db.sessions[("mario", claims(t0)["sid"])]["retired"]:
+        r["until"] = int(time.time()) - 1
+    assert client.get("/api/auth/me", headers=bearer(t0)).status_code == 401  # stolen copy
+    assert client.get("/api/auth/me", headers=bearer(t1)).status_code == 401  # whole session dead
+
+
+def test_protected_when_idle_more_than_15_minutes_then_401(client, fake_db):
+    register(client)
+    t0 = login(client).json()["token"]
+    fake_db.sessions[("mario", claims(t0)["sid"])]["expires_at"] = int(time.time()) - 1
+    assert client.get("/api/auth/me", headers=bearer(t0)).status_code == 401
+
+
+def test_logout_when_called_then_token_stops_working(client):
+    register(client)
+    t0 = login(client).json()["token"]
+    assert client.post("/api/auth/logout", headers=bearer(t0)).status_code == 200
+    assert client.get("/api/auth/me", headers=bearer(t0)).status_code == 401
 
 
 def test_me_when_authenticated_then_profile(client, auth_headers):
@@ -84,104 +192,121 @@ def test_protected_when_no_token_then_rejected(client):
     assert client.get("/api/auth/me").status_code in (401, 403)
 
 
+def _forged(**payload) -> str:
+    return jwt.encode(payload, main.SECRET_KEY, algorithm="HS256")
+
+
 @pytest.mark.parametrize(
     "token",
     [
         "not-a-jwt",
-        jwt.encode({"sub": "mario", "exp": datetime.now(UTC) - timedelta(hours=1)}, "test-secret-key"),
-        jwt.encode({"sub": "mario"}, "another-secret"),
-        jwt.encode({"exp": datetime.now(UTC) + timedelta(hours=1)}, "test-secret-key"),  # no sub
+        jwt.encode({"sub": "mario", "sid": "s", "jti": "j"}, "another-secret"),
+        _forged(sub="mario", exp=datetime.now(UTC) + timedelta(hours=1)),  # legacy token: no session
+        _forged(sub="mario", sid="unknown", jti="j", exp=datetime.now(UTC) + timedelta(hours=1)),
+        _forged(sub="mario", sid="s", jti="j", exp=datetime.now(UTC) - timedelta(hours=1)),
     ],
 )
-def test_protected_when_invalid_expired_or_forged_token_then_401(client, token):
-    res = client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"})
+def test_protected_when_invalid_forged_or_sessionless_token_then_401(client, fake_db, token):
+    res = client.get("/api/auth/me", headers=bearer(token))
     assert res.status_code == 401
     assert main.REFRESH_HEADER not in res.headers
 
 
-def _exp(token: str) -> datetime:
-    return datetime.fromtimestamp(jwt.decode(token, main.SECRET_KEY, algorithms=["HS256"])["exp"], UTC)
-
-
-def test_create_token_when_issued_then_expires_in_30_minutes():
-    left = _exp(main._create_token("mario")) - datetime.now(UTC)
-    assert timedelta(minutes=29) < left <= timedelta(minutes=30)
-
-
-def test_protected_when_token_valid_then_fresh_30_minute_token_returned(client, fake_db):
-    register(client)
-    old = jwt.encode({"sub": "mario", "exp": datetime.now(UTC) + timedelta(minutes=2)}, main.SECRET_KEY)
-    res = client.get("/api/auth/me", headers={"Authorization": f"Bearer {old}"})
-    fresh = res.headers[main.REFRESH_HEADER]
-    assert res.status_code == 200
-    assert jwt.decode(fresh, main.SECRET_KEY, algorithms=["HS256"])["sub"] == "mario"
-    assert _exp(fresh) - datetime.now(UTC) > timedelta(minutes=29)  # sliding: activity extends it
-
-
-def test_protected_when_idle_more_than_30_minutes_then_401(client, fake_db):
-    register(client)
-    issued_31_min_ago = datetime.now(UTC) - timedelta(minutes=31)
-    stale = jwt.encode({"sub": "mario", "exp": issued_31_min_ago + timedelta(minutes=30)}, main.SECRET_KEY)
-    assert client.get("/api/auth/me", headers={"Authorization": f"Bearer {stale}"}).status_code == 401
-
-
 # ─── Password reset ───────────────────────────────────────────────────────────
 
-
-def test_forgot_when_unknown_email_then_generic_ok_without_link(client):
-    res = client.post("/api/auth/forgot-password", json={"email": "nobody@example.com"})
-    assert res.status_code == 200 and "reset_url" not in res.json()
+GENERIC = "Se l'email è registrata riceverai a breve un link per reimpostare la password."
 
 
-def test_forgot_when_dev_link_enabled_then_reset_link_and_token_saved(client, fake_db, monkeypatch):
+@pytest.fixture
+def no_dev_link(monkeypatch):
+    monkeypatch.delenv("AUTH_DEV_RESET_LINK", raising=False)
+
+
+@pytest.mark.usefixtures("no_dev_link")
+@pytest.mark.parametrize("delivered", [True, False])
+def test_forgot_when_unknown_or_known_email_then_identical_answer(client, monkeypatch, delivered):
+    monkeypatch.setattr(main, "send_reset_email", lambda to, url: delivered)
+    register(client)
+    unknown = client.post("/api/auth/forgot-password", json={"email": "nobody@example.com"})
+    known = client.post("/api/auth/forgot-password", json={"email": "mario@example.com"})
+    assert unknown.status_code == known.status_code == 200
+    assert unknown.json() == known.json() == {"status": "ok", "message": GENERIC}
+
+
+def test_forgot_when_dev_link_enabled_then_reset_link_and_only_hash_saved(client, fake_db, monkeypatch):
     monkeypatch.setenv("AUTH_DEV_RESET_LINK", "true")
     register(client)
-    res = client.post("/api/auth/forgot-password", json={"email": "MARIO@example.com"})
-    token = fake_db.users["mario"]["reset_token"]
-    assert res.json()["reset_url"].endswith(f"/login?reset_token={token}")
+    url = client.post("/api/auth/forgot-password", json={"email": "MARIO@example.com"}).json()["reset_url"]
+    token = url.split("reset_token=")[1]
+    assert fake_db.users["mario"]["reset_token_hash"] == main._hash_reset_token(token)
+    assert token not in str(fake_db.users["mario"])  # plaintext token never stored
 
 
-def test_forgot_when_no_email_transport_then_503_and_link_never_returned(client, monkeypatch):
-    for var in ("AUTH_DEV_RESET_LINK", "SES_SENDER", "SMTP_HOST"):
-        monkeypatch.delenv(var, raising=False)
+def test_forgot_when_dev_link_set_on_aws_then_ignored(client, monkeypatch):
+    monkeypatch.setenv("AUTH_DEV_RESET_LINK", "true")
+    monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "portfoliolab")
+    monkeypatch.setattr(main, "send_reset_email", lambda to, url: True)
     register(client)
     res = client.post("/api/auth/forgot-password", json={"email": "mario@example.com"})
-    assert res.status_code == 503
-    assert "reset_token" not in res.text and "reset_url" not in res.json()
+    assert "reset_url" not in res.json()
 
 
+@pytest.mark.usefixtures("no_dev_link")
 def test_forgot_when_email_sent_then_link_goes_only_to_account_mailbox(client, fake_db, monkeypatch):
-    monkeypatch.delenv("AUTH_DEV_RESET_LINK", raising=False)
     sent: list[tuple[str, str]] = []
     monkeypatch.setattr(main, "send_reset_email", lambda to, url: sent.append((to, url)) or True)
     register(client)
-    res = client.post("/api/auth/forgot-password", json={"email": " MARIO@example.com "})
-    token = fake_db.users["mario"]["reset_token"]
-    assert res.status_code == 200 and "reset_url" not in res.json()
-    assert sent == [("mario@example.com", f"http://localhost:8000/login?reset_token={token}")]
+    client.post("/api/auth/forgot-password", json={"email": " MARIO@example.com "})
+    [(to, url)] = sent
+    assert to == "mario@example.com" and url.startswith("http://localhost:8000/login?reset_token=")
+    assert fake_db.users["mario"]["reset_token_hash"] == main._hash_reset_token(url.split("=")[1])
 
 
-def test_reset_when_valid_token_then_password_changed_and_token_cleared(client, fake_db):
+def _set_token(fake_db, token="tok", delta=timedelta(hours=1)):
+    fake_db.set_reset_token("mario", main._hash_reset_token(token), (datetime.now(UTC) + delta).isoformat())
+
+
+def test_reset_when_valid_token_then_password_changed_token_burnt_sessions_revoked(client, fake_db):
     register(client)
-    expires = (datetime.now(UTC) + timedelta(hours=1)).isoformat()
-    fake_db.set_reset_token("mario", "tok", expires)
-    res = client.post("/api/auth/reset-password", json={"token": "tok", "new_password": "newpass1"})
+    old_session = login(client).json()["token"]
+    _set_token(fake_db)
+    res = client.post("/api/auth/reset-password", json={"token": "tok", "new_password": "brand-new-pass"})
     assert res.status_code == 200
-    assert "reset_token" not in fake_db.users["mario"]
-    login = client.post("/api/auth/login", json={"username": "mario", "password": "newpass1"})
-    assert login.status_code == 200
+    assert "reset_token_hash" not in fake_db.users["mario"]
+    assert client.get("/api/auth/me", headers=bearer(old_session)).status_code == 401
+    assert login(client, password="brand-new-pass").status_code == 200
+    again = client.post("/api/auth/reset-password", json={"token": "tok", "new_password": "another-pass1"})
+    assert again.status_code == 400  # single use
 
 
 @pytest.mark.parametrize(
     "token,delta,password",
     [
-        ("wrong", timedelta(hours=1), "newpass1"),  # unknown token
-        ("tok", timedelta(hours=-1), "newpass1"),  # expired
-        ("tok", timedelta(hours=1), "123"),  # too short
+        ("wrong", timedelta(hours=1), "brand-new-pass"),  # unknown token
+        ("tok", timedelta(hours=-1), "brand-new-pass"),  # expired
+        ("tok", timedelta(hours=1), "short123"),  # under 10 characters
     ],
 )
 def test_reset_when_invalid_expired_or_short_then_400(client, fake_db, token, delta, password):
     register(client)
-    fake_db.set_reset_token("mario", "tok", (datetime.now(UTC) + delta).isoformat())
+    _set_token(fake_db, delta=delta)
     res = client.post("/api/auth/reset-password", json={"token": token, "new_password": password})
     assert res.status_code == 400
+
+
+# ─── Startup key check ────────────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize("key", ["", "short-key", "x" * 31])
+def test_load_secret_key_when_missing_or_weak_on_aws_then_refuses_to_start(monkeypatch, key):
+    monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "portfoliolab")
+    monkeypatch.setenv("SECRET_KEY", key)
+    with pytest.raises(main.ConfigurationError):
+        main._load_secret_key()
+
+
+def test_load_secret_key_when_missing_locally_then_random_key(monkeypatch):
+    monkeypatch.delenv("AWS_LAMBDA_FUNCTION_NAME", raising=False)
+    monkeypatch.delenv("SECRET_KEY", raising=False)
+    a, b = main._load_secret_key(), main._load_secret_key()
+    assert len(a) >= 32 and a != b

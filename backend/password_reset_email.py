@@ -9,8 +9,8 @@ tried in order:
 * **SMTP** when ``SMTP_HOST`` is set (any provider, e.g. Gmail app password).
 
 Only for local development, ``AUTH_DEV_RESET_LINK=true`` lets the API return
-the link in the HTTP response instead (see ``backend.main``). It must never be
-enabled on a deployed environment.
+the link in the HTTP response instead (see ``backend.main``). The flag is
+ignored on AWS Lambda, so a stray env var cannot open account takeover.
 """
 from __future__ import annotations
 
@@ -27,7 +27,9 @@ SUBJECT = "Reimposta la tua password – PortfolioLab"
 
 
 def dev_reset_link_enabled() -> bool:
-    """True only when the local-dev escape hatch is explicitly switched on."""
+    """True only when the local-dev escape hatch is explicitly switched on (never on AWS)."""
+    if os.getenv("AWS_LAMBDA_FUNCTION_NAME"):
+        return False
     return os.getenv("AUTH_DEV_RESET_LINK", "").lower() == "true"
 
 

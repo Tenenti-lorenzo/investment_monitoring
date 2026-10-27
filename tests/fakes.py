@@ -7,7 +7,7 @@ Nothing here touches the network: every scraper is fed captured HTML from
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -129,11 +129,12 @@ def random_walk(
 
 
 class FakeDB:
-    """In-memory replacement for backend.database (users + portfolios)."""
+    """In-memory replacement for backend.database / backend.session_store."""
 
     def __init__(self) -> None:
         self.users: dict[str, dict[str, Any]] = {}
         self.portfolios: dict[tuple[str, str], dict[str, Any]] = {}
+        self.sessions: dict[tuple[str, str], dict[str, Any]] = {}
         self._next = 0
 
     # users
@@ -143,8 +144,8 @@ class FakeDB:
     def get_user_by_email(self, email: str) -> dict[str, Any] | None:
         return next((u for u in self.users.values() if u["email"] == email), None)
 
-    def get_user_by_reset_token(self, token: str) -> dict[str, Any] | None:
-        return next((u for u in self.users.values() if u.get("reset_token") == token), None)
+    def get_user_by_reset_token(self, token_hash: str) -> dict[str, Any] | None:
+        return next((u for u in self.users.values() if u.get("reset_token_hash") == token_hash), None)
 
     def create_user(self, username: str, email: str, hashed_password: str) -> None:
         if self.get_user_by_email(email):
@@ -158,14 +159,53 @@ class FakeDB:
             "created_at": "2026-01-01",
         }
 
-    def set_reset_token(self, username: str, token: str, expires: str) -> None:
-        self.users[username].update(reset_token=token, reset_token_expires=expires)
+    def set_reset_token(self, username: str, token_hash: str, expires: str) -> None:
+        self.users[username].update(reset_token_hash=token_hash, reset_token_expires=expires)
 
     def set_password(self, username: str, hashed_password: str) -> None:
         u = self.users[username]
         u["hashed_password"] = hashed_password
-        u.pop("reset_token", None)
-        u.pop("reset_token_expires", None)
+        for k in ("reset_token_hash", "reset_token_expires", "failed_logins", "lock_until"):
+            u.pop(k, None)
+
+    def register_failed_login(self, username: str, max_attempts: int, lock_minutes: int) -> str | None:
+        u = self.users.get(username)
+        if u is None:
+            return None
+        u["failed_logins"] = u.get("failed_logins", 0) + 1
+        if u["failed_logins"] < max_attempts:
+            return None
+        u["failed_logins"] = 0
+        u["lock_until"] = (datetime.now(UTC) + timedelta(minutes=lock_minutes)).isoformat()
+        return u["lock_until"]
+
+    def clear_failed_logins(self, username: str) -> None:
+        self.users[username].pop("failed_logins", None)
+        self.users[username].pop("lock_until", None)
+
+    # sessions
+    def create_session(self, username: str, sid: str, jti: str, expires_at: int) -> None:
+        self.sessions[(username, sid)] = {"jti": jti, "expires_at": expires_at, "retired": []}
+
+    def get_session(self, username: str, sid: str) -> dict[str, Any] | None:
+        s = self.sessions.get((username, sid))
+        return {**s, "retired": [dict(r) for r in s["retired"]]} if s else None
+
+    def rotate_session(
+        self, username: str, sid: str, old_jti: str, new_jti: str, retired: list[dict[str, Any]], expires_at: int
+    ) -> bool:
+        s = self.sessions.get((username, sid))
+        if not s or s["jti"] != old_jti:
+            return False
+        s.update(jti=new_jti, retired=retired, expires_at=expires_at)
+        return True
+
+    def delete_session(self, username: str, sid: str) -> None:
+        self.sessions.pop((username, sid), None)
+
+    def delete_user_sessions(self, username: str) -> None:
+        for key in [k for k in self.sessions if k[0] == username]:
+            del self.sessions[key]
 
     # portfolios
     def save_portfolio_dynamo(self, username: str, name: str, data: dict[str, Any]) -> str:

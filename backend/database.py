@@ -2,13 +2,19 @@ import os
 import json as _json
 import uuid
 import boto3
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from botocore.exceptions import ClientError
 from boto3.dynamodb.conditions import Attr, Key
 
 TABLE_NAME       = os.getenv("DYNAMODB_TABLE",            "portfoliolab_users")
 PORTFOLIOS_TABLE = os.getenv("DYNAMODB_PORTFOLIOS_TABLE", "portfoliolab_portfolios")
+SESSIONS_TABLE   = os.getenv("DYNAMODB_SESSIONS_TABLE",   "portfoliolab_sessions")
 _REGION          = os.getenv("AWS_REGION", os.getenv("AWS_DEFAULT_REGION", "eu-central-1"))
+
+# Global secondary indexes on the users table (terraform/dynamodb.tf). Tables
+# created before them still work: lookups fall back to a paginated scan.
+EMAIL_INDEX = "email-index"
+RESET_INDEX = "reset_token_hash-index"
 
 
 def _table():
@@ -49,6 +55,24 @@ def init_db() -> None:
             {"AttributeName": "portfolio_id", "AttributeType": "S"},
         ],
     )
+    _ensure_table(
+        client, SESSIONS_TABLE,
+        [
+            {"AttributeName": "username", "KeyType": "HASH"},
+            {"AttributeName": "sid",      "KeyType": "RANGE"},
+        ],
+        [
+            {"AttributeName": "username", "AttributeType": "S"},
+            {"AttributeName": "sid",      "AttributeType": "S"},
+        ],
+    )
+    try:  # DynamoDB deletes idle sessions by itself (Terraform sets this in AWS)
+        client.update_time_to_live(
+            TableName=SESSIONS_TABLE,
+            TimeToLiveSpecification={"Enabled": True, "AttributeName": "expires_at"},
+        )
+    except ClientError:
+        pass  # already enabled
 
 
 # ── Users ─────────────────────────────────────────────────────────────────────
@@ -69,11 +93,22 @@ def _scan_first(condition) -> dict | None:
             return None
         kwargs["ExclusiveStartKey"] = resp["LastEvaluatedKey"]
 
-def get_user_by_email(email: str) -> dict | None:
-    return _scan_first(Attr("email").eq(email))
+def _lookup_first(index: str, attr: str, value: str) -> dict | None:
+    try:
+        resp = _table().query(IndexName=index, KeyConditionExpression=Key(attr).eq(value), Limit=1)
+    except ClientError as e:
+        if e.response["Error"]["Code"] not in ("ValidationException", "ResourceNotFoundException"):
+            raise
+        return _scan_first(Attr(attr).eq(value))  # index not created yet
+    items = resp.get("Items", [])
+    return items[0] if items else None
 
-def get_user_by_reset_token(token: str) -> dict | None:
-    return _scan_first(Attr("reset_token").eq(token))
+def get_user_by_email(email: str) -> dict | None:
+    return _lookup_first(EMAIL_INDEX, "email", email)
+
+def get_user_by_reset_token(token_hash: str) -> dict | None:
+    """Look up by the SHA-256 of the reset token: the token itself is never stored."""
+    return _lookup_first(RESET_INDEX, "reset_token_hash", token_hash)
 
 def create_user(username: str, email: str, hashed_password: str) -> None:
     if get_user_by_email(email):
@@ -93,18 +128,58 @@ def create_user(username: str, email: str, hashed_password: str) -> None:
             raise ValueError("username_exists")
         raise
 
-def set_reset_token(username: str, token: str, expires: str) -> None:
+def set_reset_token(username: str, token_hash: str, expires: str) -> None:
     _table().update_item(
         Key={"username": username},
-        UpdateExpression="SET reset_token = :t, reset_token_expires = :e",
-        ExpressionAttributeValues={":t": token, ":e": expires},
+        UpdateExpression="SET reset_token_hash = :t, reset_token_expires = :e REMOVE reset_token",
+        ExpressionAttributeValues={":t": token_hash, ":e": expires},
     )
 
 def set_password(username: str, hashed_password: str) -> None:
+    """New password: also burns the reset token and clears any login lockout."""
     _table().update_item(
         Key={"username": username},
-        UpdateExpression="SET hashed_password = :p REMOVE reset_token, reset_token_expires",
+        UpdateExpression=(
+            "SET hashed_password = :p "
+            "REMOVE reset_token, reset_token_hash, reset_token_expires, failed_logins, lock_until"
+        ),
         ExpressionAttributeValues={":p": hashed_password},
+    )
+
+
+# ── Login lockout ─────────────────────────────────────────────────────────────
+
+def register_failed_login(username: str, max_attempts: int, lock_minutes: int) -> str | None:
+    """Count a wrong password; at ``max_attempts`` lock the account.
+
+    Returns the ISO lock expiry when this failure triggered the lock, else None.
+    """
+    try:
+        resp = _table().update_item(
+            Key={"username": username},
+            UpdateExpression="ADD failed_logins :one",
+            ConditionExpression="attribute_exists(username)",  # never create items for unknown users
+            ExpressionAttributeValues={":one": 1},
+            ReturnValues="UPDATED_NEW",
+        )
+    except ClientError as e:
+        if e.response["Error"]["Code"] == "ConditionalCheckFailedException":
+            return None
+        raise
+    if int(resp["Attributes"]["failed_logins"]) < max_attempts:
+        return None
+    until = (datetime.now(timezone.utc) + timedelta(minutes=lock_minutes)).isoformat()
+    _table().update_item(
+        Key={"username": username},
+        UpdateExpression="SET lock_until = :u, failed_logins = :zero",
+        ExpressionAttributeValues={":u": until, ":zero": 0},
+    )
+    return until
+
+def clear_failed_logins(username: str) -> None:
+    _table().update_item(
+        Key={"username": username},
+        UpdateExpression="REMOVE failed_logins, lock_until",
     )
 
 

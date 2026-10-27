@@ -174,10 +174,11 @@ Legenda: 🔒 = richiede Bearer JWT (`get_current_user`).
 
 | Endpoint | Metodo | Input | Output (200) | Errori |
 | --- | --- | --- | --- | --- |
-| `/api/auth/register` | POST | `RegisterRequest` | `{status, token, username}` | 400 username non valido (3-40 caratteri `\w.-`), email non valida, password <6 o username/email in uso |
-| `/api/auth/login` | POST | `LoginRequest` | `{token, username}` | 401 credenziali non valide |
-| `/api/auth/forgot-password` | POST | `ForgotRequest` | `{status, message}`; il link parte via email (SES o SMTP, `backend/password_reset_email.py`). `{status, reset_url, message}` solo con `AUTH_DEV_RESET_LINK=true` (sviluppo locale) | 200 anche per email sconosciuta (non rivela se esiste); 503 se nessun trasporto email e' configurato |
-| `/api/auth/reset-password` | POST | `ResetRequest` | `{status, message}` | 400 token invalido/scaduto o password <6 |
+| `/api/auth/register` | POST | `RegisterRequest` | `{status, token, username}` | 400 username non valido (3-40 caratteri `\w.-`), email non valida, password <10 o username/email in uso; 403 captcha |
+| `/api/auth/login` | POST | `LoginRequest` | `{token, username}` | 401 credenziali non valide; 429 account bloccato 15 min dopo 5 password errate; 403 captcha |
+| `/api/auth/logout` | POST | Bearer | `{status}` | revoca la sessione lato server (sempre 200) |
+| `/api/auth/forgot-password` | POST | `ForgotRequest` | `{status, message}`; il link parte via email (SES o SMTP, `backend/password_reset_email.py`). `{status, reset_url, message}` solo con `AUTH_DEV_RESET_LINK=true` (sviluppo locale) | sempre la stessa risposta 200, che l'email esista o no e anche se l'invio fallisce (loggato lato server) |
+| `/api/auth/reset-password` | POST | `ResetRequest` | `{status, message}`; revoca tutte le sessioni dell'utente | 400 token invalido/scaduto/gia' usato o password <10 |
 | `/api/auth/me` | GET 🔒 | — | `{username, email, created_at}` | 401 / 404 utente non trovato |
 
 ### Strumenti
@@ -241,7 +242,8 @@ In produzione queste pagine sono servite da S3/CloudFront ([Infrastruttura](infr
 | `_load_aws_secrets()` | env `SECRETS_ARN` | — (popola env) | usa boto3 Secrets Manager; no-op in locale |
 | `get_current_user(credentials)` | Bearer token | username (str) | decodifica JWT HS256; 401 se invalido/scaduto/senza `sub` |
 | `_hash_pw / _verify_pw` | password | hash bcrypt / bool | tronca a 72 byte (limite bcrypt) |
-| `_create_token(username)` | username | JWT (scade in 30 minuti; rinnovato a ogni chiamata autenticata via header `X-Refreshed-Token` → scadenza per inattività) | claim `sub`, `exp` |
+| `_start_session(username)` | username | primo JWT di una nuova sessione (`backend/session_store.py`, tabella `*_sessions`) | claim `sub`, `sid`, `jti`, `iat`, `exp` (15 min) |
+| `get_current_user` | Bearer | username; ruota il token a ogni chiamata (nuovo `jti` in `X-Refreshed-Token`, il vecchio resta valido 30 s per le richieste parallele, poi un suo riuso revoca la sessione); 15 min di inattivita' → 401 | |
 | `openfigi_items(isin)` | ISIN | righe OpenFIGI (o `[]`) | una sola chiamata, riusata da `isin_to_ticker` e `classify_bond` |
 | `isin_to_ticker(isin, items)` | ISIN | `{ticker, name, exchCode, securityType, ...}` o `{}` | preferisce borse EUR (Xetra/Milano/Parigi) e tipi fondo/ETP per domicili ETF UE |
 | `build_yf_ticker(ticker, exch)` | ticker, exchCode | ticker Yahoo (es. `IWVL.L`) | mappa exchCode→suffisso via `SUFFIX_MAP` |
