@@ -87,3 +87,27 @@ resource "aws_dynamodb_table" "portfolios" {
     Env = var.environment
   }
 }
+
+# Hand-entered assets outside the market portfolio (life insurance, pension
+# funds, real estate with mortgage, private investments). One item per asset.
+resource "aws_dynamodb_table" "assets" {
+  name         = "${var.app_name}_assets"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "username"
+  range_key    = "asset_id"
+
+  attribute {
+    name = "username"
+    type = "S"
+  }
+
+  attribute {
+    name = "asset_id"
+    type = "S"
+  }
+
+  tags = {
+    App = var.app_name
+    Env = var.environment
+  }
+}

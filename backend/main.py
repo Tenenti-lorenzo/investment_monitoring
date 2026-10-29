@@ -18,7 +18,8 @@ import secrets
 import hashlib
 import logging
 import time
-from datetime import datetime, timedelta, timezone
+import uuid
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -46,10 +47,14 @@ from backend.sovereign_yields import SovereignYieldsResponse, fetch_sovereign_yi
 from backend.analysis_models import DeepAnalysisRequest, DeepAnalysisResponse, LookThroughResponse
 from backend.deep_analysis import run_deep_analysis
 from backend.captcha import CaptchaConfig, public_config, verify_captcha
-from backend.exceptions import ConfigurationError, InsufficientDataError
+from backend.exceptions import ConfigurationError, InsufficientDataError, ProjectionInputError
 from backend.fx_rates import FxRate, fetch_eur_rate
 from backend.password_reset_email import dev_reset_link_enabled, send_reset_email
 from backend.look_through import run_look_through
+from backend.projection_models import PensionSimulation, PolicyProjection
+from backend.projections import project_policy, simulate_pension
+from backend.wealth import build_net_worth, value_saved_portfolio
+from backend.wealth_models import AssetKind, NetWorthRequest, NetWorthSummary, OtherAsset, SavedPortfolio
 from backend.superinvestors import (
     ConsensusStock,
     Manager,
@@ -74,6 +79,9 @@ from backend.database import (
     list_portfolios_dynamo,
     load_portfolio_dynamo,
     delete_portfolio_dynamo,
+    save_asset_dynamo,
+    list_assets_dynamo,
+    delete_asset_dynamo,
 )
 from backend.session_store import (
     create_session,
@@ -149,6 +157,14 @@ if frontend_path.exists():
     @app.get("/rendimenti")
     def yields_page():
         return FileResponse(str(frontend_path / "rendimenti.html"))
+
+    @app.get("/altri-investimenti")
+    def other_assets_page():
+        return FileResponse(str(frontend_path / "altri-investimenti.html"))
+
+    @app.get("/patrimonio")
+    def net_worth_page():
+        return FileResponse(str(frontend_path / "patrimonio.html"))
 
 
 # ─── Auth helpers ────────────────────────────────────────────────────────────
@@ -1280,6 +1296,70 @@ def load_portfolio_endpoint(portfolio_id: str, current_user: str = Depends(get_c
 def delete_portfolio_endpoint(portfolio_id: str, current_user: str = Depends(get_current_user)):
     delete_portfolio_dynamo(current_user, portfolio_id)
     return {"status": "deleted"}
+
+
+# ─── Other assets & net worth ─────────────────────────────────────────────────
+
+MAX_ASSETS_PER_USER = 200
+
+
+@app.get("/api/assets", response_model=List[OtherAsset])
+def list_assets_endpoint(current_user: str = Depends(get_current_user)) -> List[OtherAsset]:
+    return list_assets_dynamo(current_user)
+
+
+@app.post("/api/assets", response_model=OtherAsset)
+def save_asset_endpoint(asset: OtherAsset, current_user: str = Depends(get_current_user)) -> OtherAsset:
+    """Create (no ``asset_id``) or replace one of the user's assets."""
+    existing = list_assets_dynamo(current_user)
+    if asset.asset_id is None and len(existing) >= MAX_ASSETS_PER_USER:
+        raise HTTPException(400, f"Massimo {MAX_ASSETS_PER_USER} beni per utente")
+    if asset.asset_id is not None and all(a.asset_id != asset.asset_id for a in existing):
+        raise HTTPException(404, "Bene non trovato")
+    saved = asset.model_copy(update={
+        "asset_id":   asset.asset_id or uuid.uuid4().hex,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    })
+    save_asset_dynamo(current_user, saved)
+    return saved
+
+
+@app.delete("/api/assets/{asset_id}")
+def delete_asset_endpoint(asset_id: str, current_user: str = Depends(get_current_user)):
+    delete_asset_dynamo(current_user, asset_id)
+    return {"status": "deleted"}
+
+
+@app.post("/api/wealth/summary", response_model=NetWorthSummary)
+def wealth_summary(req: NetWorthRequest, current_user: str = Depends(get_current_user)) -> NetWorthSummary:
+    """Net worth = chosen saved portfolios + hand-entered assets − mortgages."""
+    portfolios = []
+    for pid in dict.fromkeys(req.portfolio_ids):  # dedupe, keep order
+        data = load_portfolio_dynamo(current_user, pid)
+        if data is None:
+            raise HTTPException(404, "Portafoglio non trovato")
+        portfolios.append(value_saved_portfolio(SavedPortfolio.model_validate(data)))
+    return build_net_worth(list_assets_dynamo(current_user), portfolios, date.today())
+
+
+@app.get("/api/wealth/policies", response_model=List[PolicyProjection])
+def wealth_policies(current_user: str = Depends(get_current_user)) -> List[PolicyProjection]:
+    """Projection to maturity of every life policy of the user."""
+    today = date.today()
+    return [project_policy(a, today) for a in list_assets_dynamo(current_user)
+            if a.kind == AssetKind.LIFE_INSURANCE]
+
+
+@app.get("/api/wealth/pension/{asset_id}", response_model=PensionSimulation)
+def wealth_pension(asset_id: str, current_user: str = Depends(get_current_user)) -> PensionSimulation:
+    """Monte Carlo to retirement of one pension fund, for every investment line."""
+    asset = next((a for a in list_assets_dynamo(current_user) if a.asset_id == asset_id), None)
+    if asset is None:
+        raise HTTPException(404, "Bene non trovato")
+    try:
+        return simulate_pension(asset, date.today())
+    except ProjectionInputError as e:
+        raise HTTPException(400, str(e))
 
 
 # ─── Portfolio performance ────────────────────────────────────────────────────

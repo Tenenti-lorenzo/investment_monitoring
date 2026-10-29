@@ -7,3 +7,7 @@ class InsufficientDataError(Exception):
 
 class ConfigurationError(Exception):
     """Raised at startup when a security-critical setting is missing or unsafe."""
+
+
+class ProjectionInputError(Exception):
+    """Raised when an asset lacks the data a projection needs (message is user-facing)."""

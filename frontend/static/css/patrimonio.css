@@ -1,0 +1,77 @@
+/* PortfolioLab – Altri investimenti (/altri-investimenti) and Patrimonio (/patrimonio). Builds on analisi.css. */
+
+.wl-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.wl-head .card-header { margin-bottom: 0; }
+.wl-icon { margin-right: 6px; }
+.wl-empty { color: var(--muted); font-size: 13px; padding: 14px 0 2px; }
+.wl-sub { display: block; font-size: 11.5px; color: var(--muted); margin-top: 1px; }
+.wl-actions { display: inline-flex; gap: 4px; }
+.wl-actions button {
+  background: transparent; border: 1px solid var(--border); border-radius: 6px; color: var(--muted);
+  font-size: 12px; padding: 3px 8px; cursor: pointer; font-family: inherit;
+}
+.wl-actions button:hover { color: var(--text); border-color: var(--accent2); }
+.wl-actions button.del:hover { color: var(--critical-text); border-color: var(--critical-text); }
+
+/* Modal form */
+.wl-modal {
+  position: fixed; inset: 0; background: var(--overlay); backdrop-filter: blur(4px); z-index: 1000;
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+}
+.wl-modal.hidden { display: none; }
+.wl-modal-box {
+  background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 22px;
+  width: 100%; max-width: 620px; max-height: 88vh; overflow-y: auto; box-shadow: var(--shadow);
+}
+.wl-modal-box h3 { font-family: var(--font-head); font-size: 18px; margin-bottom: 14px; }
+.wl-form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.wl-form .an-field.full, .wl-form fieldset { grid-column: 1 / -1; }
+.wl-form .an-field input, .wl-form .an-field select, .wl-form .an-field textarea { min-width: 0; width: 100%; }
+.wl-form textarea {
+  background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  color: var(--text); padding: 9px 10px; font-family: inherit; font-size: 14px; resize: vertical;
+}
+.wl-form fieldset {
+  border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+}
+.wl-form legend { font-size: 12px; color: var(--muted); padding: 0 6px; }
+.wl-form .wl-check { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.wl-form .wl-hint { grid-column: 1 / -1; font-size: 11.5px; color: var(--muted); margin-top: -6px; }
+.wl-form-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.wl-error { color: var(--critical-text); font-size: 13px; margin-top: 10px; }
+[hidden] { display: none !important; }
+
+/* Net worth */
+.nw-hero .kpi-value { font-size: 26px; }
+.nw-pick { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.nw-pick label {
+  display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer;
+  border: 1px solid var(--border); border-radius: 999px; padding: 5px 12px; background: var(--bg);
+}
+.nw-pick label:has(input:checked) { border-color: var(--accent2); }
+.nw-pick input { accent-color: var(--accent); }
+.nw-stack { height: 22px; margin-top: 16px; }
+.nw-debt { background: var(--critical); }
+.nw-progress { height: 8px; background: var(--bg); border-radius: 4px; overflow: hidden; margin-top: 8px; }
+.nw-progress span { display: block; height: 100%; background: var(--good); border-radius: 0 4px 4px 0; }
+.nw-mortgages { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin-top: 12px; }
+.nw-mortgage { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; font-size: 13px; }
+.nw-mortgage strong { font-family: var(--font-head); font-size: 14px; }
+.nw-mortgage .row { display: flex; justify-content: space-between; color: var(--muted); margin-top: 4px; }
+.nw-mortgage .row span:last-child { color: var(--text); font-variant-numeric: tabular-nums; }
+
+/* Projections */
+.wl-tabs { display: inline-flex; flex-wrap: wrap; background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 3px; margin-bottom: 4px; }
+.wl-tabs button {
+  background: transparent; border: 0; color: var(--muted); font: 600 13px var(--font);
+  padding: 6px 14px; border-radius: 6px; cursor: pointer;
+}
+.wl-tabs button:hover { color: var(--text); }
+.wl-tabs button.active { background: var(--accent); color: #fff; }
+.wl-pension { border-top: 1px solid var(--border2); margin-top: 18px; padding-top: 6px; }
+.wl-pension .an-explain .btn { vertical-align: middle; }
+
+@media (max-width: 560px) {
+  .wl-form, .wl-form fieldset { grid-template-columns: 1fr; }
+}

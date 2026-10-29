@@ -41,6 +41,9 @@ _DB_FUNCS = (
     "list_portfolios_dynamo",
     "load_portfolio_dynamo",
     "delete_portfolio_dynamo",
+    "save_asset_dynamo",
+    "list_assets_dynamo",
+    "delete_asset_dynamo",
 )
 
 

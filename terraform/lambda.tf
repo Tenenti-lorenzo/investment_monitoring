@@ -46,6 +46,7 @@ resource "aws_iam_role_policy" "dynamodb" {
         "${aws_dynamodb_table.users.arn}/index/*",
         aws_dynamodb_table.portfolios.arn,
         aws_dynamodb_table.sessions.arn,
+        aws_dynamodb_table.assets.arn,
       ]
     }]
   })
@@ -97,6 +98,7 @@ resource "aws_lambda_function" "app" {
         DYNAMODB_TABLE            = aws_dynamodb_table.users.name
         DYNAMODB_PORTFOLIOS_TABLE = aws_dynamodb_table.portfolios.name
         DYNAMODB_SESSIONS_TABLE   = aws_dynamodb_table.sessions.name
+        DYNAMODB_ASSETS_TABLE     = aws_dynamodb_table.assets.name
       },
       # APP_URL is set only after first deploy when CloudFront URL is known.
       # Leave empty on first apply; set in terraform.tfvars and re-apply.

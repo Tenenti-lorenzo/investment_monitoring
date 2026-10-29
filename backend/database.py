@@ -1,14 +1,21 @@
 import os
 import json as _json
+import logging
 import uuid
 import boto3
 from datetime import datetime, timedelta, timezone
 from botocore.exceptions import ClientError
 from boto3.dynamodb.conditions import Attr, Key
+from pydantic import ValidationError
+
+from backend.wealth_models import OtherAsset
+
+logger = logging.getLogger(__name__)
 
 TABLE_NAME       = os.getenv("DYNAMODB_TABLE",            "portfoliolab_users")
 PORTFOLIOS_TABLE = os.getenv("DYNAMODB_PORTFOLIOS_TABLE", "portfoliolab_portfolios")
 SESSIONS_TABLE   = os.getenv("DYNAMODB_SESSIONS_TABLE",   "portfoliolab_sessions")
+ASSETS_TABLE     = os.getenv("DYNAMODB_ASSETS_TABLE",     "portfoliolab_assets")
 _REGION          = os.getenv("AWS_REGION", os.getenv("AWS_DEFAULT_REGION", "eu-central-1"))
 
 # Global secondary indexes on the users table (terraform/dynamodb.tf). Tables
@@ -22,6 +29,9 @@ def _table():
 
 def _ptable():
     return boto3.resource("dynamodb", region_name=_REGION).Table(PORTFOLIOS_TABLE)
+
+def _atable():
+    return boto3.resource("dynamodb", region_name=_REGION).Table(ASSETS_TABLE)
 
 
 def _ensure_table(client, name: str, key_schema: list, attr_defs: list) -> None:
@@ -64,6 +74,17 @@ def init_db() -> None:
         [
             {"AttributeName": "username", "AttributeType": "S"},
             {"AttributeName": "sid",      "AttributeType": "S"},
+        ],
+    )
+    _ensure_table(
+        client, ASSETS_TABLE,
+        [
+            {"AttributeName": "username", "KeyType": "HASH"},
+            {"AttributeName": "asset_id", "KeyType": "RANGE"},
+        ],
+        [
+            {"AttributeName": "username", "AttributeType": "S"},
+            {"AttributeName": "asset_id", "AttributeType": "S"},
         ],
     )
     try:  # DynamoDB deletes idle sessions by itself (Terraform sets this in AWS)
@@ -224,3 +245,31 @@ def load_portfolio_dynamo(username: str, portfolio_id: str) -> dict | None:
 
 def delete_portfolio_dynamo(username: str, portfolio_id: str) -> None:
     _ptable().delete_item(Key={"username": username, "portfolio_id": portfolio_id})
+
+
+# ── Other assets (life insurance, pension, real estate, private) ──────────────
+
+def save_asset_dynamo(username: str, asset: OtherAsset) -> None:
+    """Insert or replace; ``asset.asset_id`` must be set. Stored as JSON (no Decimal juggling)."""
+    _atable().put_item(Item={
+        "username": username,
+        "asset_id": asset.asset_id,
+        "data":     asset.model_dump_json(),
+    })
+
+def list_assets_dynamo(username: str) -> list[OtherAsset]:
+    table, kwargs = _atable(), {"KeyConditionExpression": Key("username").eq(username)}
+    assets = []
+    while True:
+        resp = table.query(**kwargs)
+        for item in resp.get("Items", []):
+            try:
+                assets.append(OtherAsset.model_validate_json(item["data"]))
+            except ValidationError:
+                logger.warning("Skipping invalid stored asset %s of %s", item.get("asset_id"), username)
+        if "LastEvaluatedKey" not in resp:
+            return assets
+        kwargs["ExclusiveStartKey"] = resp["LastEvaluatedKey"]
+
+def delete_asset_dynamo(username: str, asset_id: str) -> None:
+    _atable().delete_item(Key={"username": username, "asset_id": asset_id})

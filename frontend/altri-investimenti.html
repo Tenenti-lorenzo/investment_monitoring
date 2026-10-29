@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PortfolioLab – Altri investimenti</title>
+  <meta name="description" content="Polizze vita, fondi pensione, casa e mutuo, private markets e altri beni fuori dal portafoglio di mercato." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" integrity="sha384-e6nUZLBkQ86NJ6TVVKAeSaK8jWa3NhkYWZFomE39AvDbQWeie9PlQqM3pmYW5d1g" crossorigin="anonymous"></script>
+  <link rel="stylesheet" href="/static/css/style.css" />
+  <script src="/static/js/theme.js"></script>
+  <link rel="stylesheet" href="/static/css/analisi.css" />
+  <link rel="stylesheet" href="/static/css/patrimonio.css" />
+  <script src="/static/js/session.js"></script>
+  <script>
+    // Auth guard — runs before anything else (15-minute inactivity expiry)
+    Session.guard();
+    function doLogout() { Session.logout(); }
+  </script>
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-inner">
+      <a href="/" class="nav-logo">
+        <span class="logo-icon">📊</span>
+        <span class="logo-text">Portfolio<strong>Lab</strong></span>
+      </a>
+      <div class="nav-links">
+        <a href="/">← Dashboard</a>
+        <a href="/patrimonio">Patrimonio complessivo</a>
+        <a href="/analisi">Analisi approfondita</a>
+        <a href="/rendimenti">Rendimenti bond</a>
+      </div>
+      <div class="nav-cta" style="display:flex;align-items:center;gap:12px">
+        <span id="navUsername" style="font-size:13px;color:var(--muted)"></span>
+        <button class="btn btn-ghost btn-sm" type="button" onclick="doLogout()">Esci</button>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container an-main">
+    <header class="an-title">
+      <h1>Altri investimenti</h1>
+      <p>Tutto quello che non passa dal portafoglio di mercato: polizze vita, fondo pensione, casa (con
+        l'eventuale mutuo), private markets e qualsiasi altro bene. Inserisci i valori attuali: confluiscono
+        nel <a href="/patrimonio">patrimonio complessivo</a>.</p>
+    </header>
+
+    <nav class="an-toc" id="wlToc" aria-label="Sezioni"></nav>
+    <div id="wlKpis" class="kpi-row k4"></div>
+    <span id="wlStatus" class="an-status">Caricamento…</span>
+    <div id="wlSections" class="an-main" style="padding:0"></div>
+
+    <section class="card">
+      <div class="an-explain" style="margin-top:0">
+        <strong>Dove lo metto?</strong> Un <strong>ETF o un titolo dentro un conto titoli</strong> va nel portafoglio
+        della dashboard, non qui. Una <strong>polizza unit linked (Ramo III)</strong> o multiramo va in "Polizze vita"
+        anche se investe in fondi: conta il valore di riscatto. Il <strong>TFR lasciato in azienda</strong>, i conti
+        deposito, l'oro fisico, l'auto o crediti verso terzi vanno in "Altro". Club deal, crowdfunding, quote di
+        startup, fondi di private equity/debt vanno in "Private markets".
+      </div>
+    </section>
+
+    <p class="an-disclaimer">Valori inseriti a mano, non verificati. Strumento informativo, non costituisce
+      consulenza finanziaria.</p>
+  </main>
+
+  <!-- Add / edit form -->
+  <div id="wlModal" class="wl-modal hidden" role="dialog" aria-modal="true" aria-labelledby="wlFormTitle">
+    <div class="wl-modal-box">
+      <h3 id="wlFormTitle">Nuovo bene</h3>
+      <form id="wlForm" class="wl-form" novalidate>
+        <input type="hidden" name="asset_id" />
+        <input type="hidden" name="kind" />
+        <label class="an-field full">Nome *
+          <input name="name" required maxlength="120" placeholder="es. Polizza Generali Vita" /></label>
+        <label class="an-field"><span data-label="provider">Compagnia / gestore</span>
+          <input name="provider" maxlength="120" /></label>
+        <label class="an-field" data-kinds="life_insurance">Tipo di polizza
+          <select name="insurance_branch">
+            <option value="">—</option>
+            <option value="ramo_i">Ramo I – gestione separata</option>
+            <option value="ramo_iii">Ramo III – unit / index linked</option>
+            <option value="multiramo">Multiramo</option>
+            <option value="tcm">TCM – temporanea caso morte</option>
+            <option value="other">Altro</option>
+          </select></label>
+        <label class="an-field" data-kinds="life_insurance" data-branches="multiramo">Quota in Ramo I (%)
+          <input name="ramo_i_share_pct" type="number" min="0" max="100" step="5" placeholder="50" /></label>
+        <label class="an-field" data-kinds="pension_fund">Comparto (nome)
+          <input name="pension_line" maxlength="120" placeholder="es. Crescita" /></label>
+        <label class="an-field" data-kinds="pension_fund">Profilo di investimento
+          <select name="pension_profile">
+            <option value="">—</option>
+            <option value="conservative">Conservativo / garantito</option>
+            <option value="balanced">Bilanciato</option>
+            <option value="dynamic">Dinamico / azionario</option>
+          </select></label>
+        <label class="an-field" data-kinds="real_estate">Quota di proprietà (%)
+          <input name="ownership_pct" type="number" min="1" max="100" step="1" value="100" /></label>
+        <label class="an-field"><span data-label="current_value">Valore attuale (€) *</span>
+          <input name="current_value" type="number" min="0" step="100" required /></label>
+        <label class="an-field"><span data-label="invested">Versato / costo (€)</span>
+          <input name="invested" type="number" min="0" step="100" /></label>
+        <label class="an-field" data-kinds="life_insurance pension_fund private"><span data-label="annual_contribution">Versamento annuo (€)</span>
+          <input name="annual_contribution" type="number" min="0" step="50" /></label>
+        <label class="an-field" data-kinds="life_insurance">Capitale assicurato caso morte (€)
+          <input name="insured_capital" type="number" min="0" step="1000" /></label>
+        <label class="an-field" data-kinds="life_insurance">Scadenza
+          <input name="maturity_date" type="date" /></label>
+        <label class="an-field" data-kinds="life_insurance">Rendimento annuo atteso (%)
+          <input name="expected_return_pct" type="number" min="-5" max="15" step="0.1" placeholder="vuoto = stima per tipo" /></label>
+        <p class="wl-hint" data-kinds="life_insurance">TCM: nessun valore di riscatto, lascia 0 e metti premio annuo e
+          capitale assicurato. Rendimento vuoto: Ramo I 2,5%, Ramo III 4,5%, multiramo in proporzione.</p>
+
+        <fieldset data-kinds="pension_fund">
+          <legend>Simulazione alla pensione</legend>
+          <label class="an-field">Anno di nascita
+            <input name="birth_year" type="number" min="1930" max="2015" step="1" placeholder="es. 1990" /></label>
+          <label class="an-field">Età di pensionamento
+            <input name="retirement_age" type="number" min="50" max="75" step="1" value="67" /></label>
+          <label class="an-field full">Tasse sulla prestazione (%)
+            <input name="tax_pct" type="number" min="0" max="50" step="0.1" placeholder="es. 15" /></label>
+          <p class="wl-hint">In Italia: 15%, ridotta dello 0,3% per ogni anno di adesione oltre il 15°, fino al 9%
+            (dopo 35 anni). Metti l'aliquota che prevedi di avere al pensionamento.</p>
+        </fieldset>
+
+        <fieldset data-kinds="real_estate">
+          <legend>Mutuo</legend>
+          <label class="wl-check"><input type="checkbox" name="has_mortgage" /> C'è un mutuo su questo immobile</label>
+          <label class="an-field" data-mortgage>Importo erogato (€)
+            <input name="principal" type="number" min="1" step="1000" /></label>
+          <label class="an-field" data-mortgage>Tasso annuo (%)
+            <input name="annual_rate_pct" type="number" min="0" max="30" step="0.01" /></label>
+          <label class="an-field" data-mortgage>Durata (anni)
+            <input name="years" type="number" min="1" max="40" step="1" /></label>
+          <label class="an-field" data-mortgage>Data stipula
+            <input name="start_date" type="date" /></label>
+          <label class="an-field" data-mortgage>Rata mensile da banca (€, per controllo)
+            <input name="monthly_payment" type="number" min="0" step="0.01" /></label>
+          <label class="an-field" data-mortgage>Debito residuo da estratto conto (€, facoltativo)
+            <input name="balance_override" type="number" min="0" step="100" /></label>
+          <p class="wl-hint" data-mortgage>Senza debito residuo lo calcoliamo dal piano di ammortamento alla francese
+            (rata costante). Con tasso variabile o rinegoziazioni usa il valore dell'estratto conto. Valore e mutuo
+            sono riferiti all'intero immobile: la quota di proprietà li riproporziona.</p>
+        </fieldset>
+
+        <label class="an-field full">Note
+          <textarea name="notes" rows="2" maxlength="500"></textarea></label>
+      </form>
+      <p id="wlFormError" class="wl-error" hidden></p>
+      <div class="wl-form-actions">
+        <button type="button" class="btn btn-ghost" id="wlCancel">Annulla</button>
+        <button type="submit" class="btn btn-primary" form="wlForm" id="wlSave">Salva</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/js/wealth-common.js"></script>
+  <script src="/static/js/wealth-charts.js"></script>
+  <script src="/static/js/altri-investimenti-projections.js"></script>
+  <script src="/static/js/altri-investimenti.js"></script>
+</body>
+</html>
