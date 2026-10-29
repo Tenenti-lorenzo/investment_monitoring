@@ -141,6 +141,8 @@ function Invoke-UploadStatic {
     aws s3 cp frontend/login.html "s3://$bucket/login.html"
     aws s3 cp frontend/analisi.html "s3://$bucket/analisi.html"
     aws s3 cp frontend/rendimenti.html "s3://$bucket/rendimenti.html"
+    aws s3 cp frontend/altri-investimenti.html "s3://$bucket/altri-investimenti.html"
+    aws s3 cp frontend/patrimonio.html "s3://$bucket/patrimonio.html"
     Write-Host "    File caricati su s3://$bucket"
 }
 
