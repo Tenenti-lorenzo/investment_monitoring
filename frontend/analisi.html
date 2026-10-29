@@ -10,6 +10,8 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" integrity="sha384-e6nUZLBkQ86NJ6TVVKAeSaK8jWa3NhkYWZFomE39AvDbQWeie9PlQqM3pmYW5d1g" crossorigin="anonymous"></script>
   <link rel="stylesheet" href="/static/css/style.css" />
   <script src="/static/js/theme.js"></script>
+  <script src="/static/js/i18n.js"></script>
+  <script src="/static/i18n/common.js"></script>
   <link rel="stylesheet" href="/static/css/analisi.css" />
   <script src="/static/js/session.js"></script>
   <script>
@@ -26,18 +28,18 @@
         <span class="logo-text">Portfolio<strong>Lab</strong></span>
       </a>
       <div class="nav-links">
-        <a href="/">← Dashboard</a>
-        <a href="/rendimenti">Rendimenti bond</a>
-        <a href="/altri-investimenti">Altri investimenti</a>
-        <a href="/patrimonio">Patrimonio</a>
-        <a href="#rendimento">Rendimento</a>
-        <a href="#composizione">Composizione</a>
-        <a href="#rischio">Rischio</a>
-        <a href="#scenari">Scenari</a>
+        <a href="/" data-i18n="nav.dashboard">← Dashboard</a>
+        <a href="/rendimenti" data-i18n="nav.yields">Rendimenti bond</a>
+        <a href="/altri-investimenti" data-i18n="nav.other">Altri investimenti</a>
+        <a href="/patrimonio" data-i18n="nav.networth">Patrimonio</a>
+        <a href="#rendimento" data-i18n="nav.return">Rendimento</a>
+        <a href="#composizione" data-i18n="nav.composition">Composizione</a>
+        <a href="#rischio" data-i18n="nav.risk">Rischio</a>
+        <a href="#scenari" data-i18n="nav.scenarios">Scenari</a>
       </div>
       <div class="nav-cta" style="display:flex;align-items:center;gap:12px">
         <span id="navUsername" style="font-size:13px;color:var(--muted)"></span>
-        <button class="btn btn-ghost btn-sm" type="button" onclick="doLogout()">Esci</button>
+        <button class="btn btn-ghost btn-sm" type="button" onclick="doLogout()" data-i18n="nav.logout">
       </div>
     </div>
   </nav>

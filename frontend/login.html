@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="it">
+<html lang="it" data-i18n-title="lp.title">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -9,6 +9,9 @@
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/static/css/style.css" />
   <script src="/static/js/theme.js"></script>
+  <script src="/static/js/i18n.js"></script>
+  <script src="/static/i18n/common.js"></script>
+  <script src="/static/i18n/landing.js"></script>
   <style>
     /* ── Landing layout: product on the left, sticky auth card on the right ── */
     .lp-layout {
@@ -127,6 +130,30 @@
     .auth-foot a { color: var(--muted); text-decoration: underline; }
     .grecaptcha-badge { visibility: hidden; }  /* notice shown in .auth-foot, as Google's terms allow */
 
+    /* ── PDF import flow & page tour ── */
+    .lp-flow { list-style: none; display: grid; gap: 12px; counter-reset: flow; }
+    .lp-flow li, .lp-page {
+      display: grid; grid-template-columns: 44px 1fr; gap: 14px; align-items: start;
+      background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px;
+    }
+    .lp-flow li { position: relative; }
+    .lp-flow li::after {
+      counter-increment: flow; content: counter(flow); position: absolute; top: 12px; right: 14px;
+      font: 700 12px var(--font-head); color: var(--muted);
+    }
+    .lp-flow .ic, .lp-page .ic {
+      width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center;
+      font-size: 22px; background: var(--bg2); border: 1px solid var(--border);
+    }
+    .lp-flow h4, .lp-page h4 { font-family: var(--font-head); font-size: 15px; margin-bottom: 4px; }
+    .lp-flow p, .lp-page p { font-size: 13px; color: var(--muted); line-height: 1.6; }
+    .lp-pages { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+    .lp-note {
+      margin-top: 14px; font-size: 13px; color: var(--muted); line-height: 1.6;
+      border-left: 3px solid var(--green); padding: 8px 12px; background: var(--bg2); border-radius: 0 10px 10px 0;
+    }
+    .lp-note strong { color: var(--text); }
+
     @media (max-width: 1000px) {
       .lp-layout { grid-template-columns: minmax(0, 1fr); grid-template-areas: "hero" "auth" "rest"; padding-top: 24px; }
       .lp-auth { position: static; max-width: 480px; width: 100%; }
@@ -147,12 +174,13 @@
         <span class="logo-text">Portfolio<strong>Lab</strong></span>
       </a>
       <div class="nav-links">
-        <a href="#funzioni">Funzioni</a>
-        <a href="#come-funziona">Come funziona</a>
-        <a href="#faq">FAQ</a>
+        <a href="#funzioni" data-i18n="nav.features">Funzioni</a>
+        <a href="#import-pdf" data-i18n="lp.nav.pdf">Import PDF</a>
+        <a href="#pagine" data-i18n="lp.nav.pages">Le pagine</a>
+        <a href="#faq" data-i18n="nav.faq">FAQ</a>
       </div>
       <div class="nav-cta" style="display:flex;align-items:center;gap:12px">
-        <span class="badge-free">🆓 Gratuito</span>
+        <span class="badge-free" data-i18n="badge.free">🆓 Gratuito</span>
       </div>
     </div>
   </nav>
@@ -161,29 +189,30 @@
 
     <!-- ── HERO ── -->
     <section class="lp-hero">
-      <span class="hero-badge">📈 Analisi portafoglio in tempo reale</span>
-      <h1>Capisci davvero cosa c'è<br />nel tuo <span class="gradient-text">portafoglio</span></h1>
-      <p class="lead">Inserisci ETF, azioni, obbligazioni e crypto per ISIN o ticker, oppure importa
-        l'estratto conto della banca. PortfolioLab ti mostra allocazione, esposizione geografica e
-        valutaria, costi e rischio, in un'unica dashboard.</p>
+      <span class="hero-badge" data-i18n="lp.hero.badge">📈 Analisi portafoglio in tempo reale</span>
+      <h1 data-i18n-html="lp.hero.h1">Capisci davvero cosa c'è<br />nel tuo <span class="gradient-text">portafoglio</span></h1>
+      <p class="lead" data-i18n-html="lp.hero.lead">Inserisci ETF, azioni, obbligazioni e crypto per ISIN o ticker, oppure
+        <strong>carica il PDF della tua banca e lascia che l'AI compili tutto</strong>. PortfolioLab ti mostra
+        allocazione, esposizione geografica e valutaria, costi e rischio, e somma polizze, fondo pensione e casa
+        nel tuo patrimonio complessivo.</p>
       <div class="lp-cta">
-        <button class="btn btn-primary btn-lg" type="button" onclick="startRegister()">Crea account gratis</button>
-        <a class="btn btn-ghost btn-lg" href="#funzioni">Scopri le funzioni</a>
+        <button class="btn btn-primary btn-lg" type="button" onclick="startRegister()" data-i18n="lp.hero.cta1">Crea account gratis</button>
+        <a class="btn btn-ghost btn-lg" href="#import-pdf" data-i18n="lp.hero.cta2">Guarda come funziona</a>
       </div>
       <div class="lp-stats">
-        <div class="lp-stat"><strong>ISIN · Ticker</strong><span>ricerca su tutti i mercati</span></div>
-        <div class="lp-stat"><strong>Look-through</strong><span>dentro ogni ETF</span></div>
-        <div class="lp-stat"><strong>0 €</strong><span>nessun abbonamento</span></div>
+        <div class="lp-stat"><strong data-i18n="lp.stat1.t">PDF → portafoglio</strong><span data-i18n="lp.stat1.s">import automatico con l'AI</span></div>
+        <div class="lp-stat"><strong data-i18n="lp.stat2.t">Look-through</strong><span data-i18n="lp.stat2.s">dentro ogni ETF</span></div>
+        <div class="lp-stat"><strong data-i18n="lp.stat3.t">0 €</strong><span data-i18n="lp.stat3.s">nessun abbonamento</span></div>
       </div>
 
       <div class="lp-preview" aria-hidden="true">
         <div class="lp-donut"></div>
         <div class="lp-bars">
-          <div class="lp-bar"><span>ETF Azionario</span><div class="lp-bar-track"><i style="width:92%;background:#8b5cf6"></i></div><b>46%</b></div>
-          <div class="lp-bar"><span>Azioni</span><div class="lp-bar-track"><i style="width:52%;background:#3b82f6"></i></div><b>26%</b></div>
-          <div class="lp-bar"><span>Obbligazioni</span><div class="lp-bar-track"><i style="width:28%;background:#10b981"></i></div><b>14%</b></div>
-          <div class="lp-bar"><span>Criptovalute</span><div class="lp-bar-track"><i style="width:16%;background:#22d3a0"></i></div><b>8%</b></div>
-          <div class="lp-bar"><span>Liquidità</span><div class="lp-bar-track"><i style="width:12%;background:#f59e0b"></i></div><b>6%</b></div>
+          <div class="lp-bar"><span data-i18n="lp.pv.etf">ETF Azionario</span><div class="lp-bar-track"><i style="width:92%;background:#8b5cf6"></i></div><b>46%</b></div>
+          <div class="lp-bar"><span data-i18n="lp.pv.stocks">Azioni</span><div class="lp-bar-track"><i style="width:52%;background:#3b82f6"></i></div><b>26%</b></div>
+          <div class="lp-bar"><span data-i18n="lp.pv.bonds">Obbligazioni</span><div class="lp-bar-track"><i style="width:28%;background:#10b981"></i></div><b>14%</b></div>
+          <div class="lp-bar"><span data-i18n="lp.pv.crypto">Criptovalute</span><div class="lp-bar-track"><i style="width:16%;background:#22d3a0"></i></div><b>8%</b></div>
+          <div class="lp-bar"><span data-i18n="lp.pv.cash">Liquidità</span><div class="lp-bar-track"><i style="width:12%;background:#f59e0b"></i></div><b>6%</b></div>
         </div>
       </div>
     </section>
@@ -191,79 +220,79 @@
     <!-- ── AUTH ── -->
     <aside class="lp-auth" id="auth">
   <div class="auth-card">
-    <div class="auth-logo">Benvenuto 👋</div>
-    <div class="auth-tagline">Il tuo dashboard di analisi portafoglio</div>
+    <div class="auth-logo" data-i18n="lp.auth.welcome">Benvenuto 👋</div>
+    <div class="auth-tagline" data-i18n="lp.auth.tagline">Il tuo dashboard di analisi portafoglio</div>
 
     <!-- ── Main login / register ── -->
     <div id="mainAuth">
       <div class="auth-tabs">
-        <button class="tab-btn active" id="tabLogin"    onclick="switchTab('login')">Accedi</button>
-        <button class="tab-btn"        id="tabRegister" onclick="switchTab('register')">Registrati</button>
+        <button class="tab-btn active" id="tabLogin"    onclick="switchTab('login')" data-i18n="lp.auth.login">Accedi</button>
+        <button class="tab-btn"        id="tabRegister" onclick="switchTab('register')" data-i18n="lp.auth.register">Registrati</button>
       </div>
 
       <div class="auth-panel active" id="loginPanel">
         <div class="form-group">
-          <label>Username</label>
-          <input type="text" id="loginUsername" autocomplete="username" placeholder="Il tuo username" />
+          <label data-i18n="lp.auth.username">Username</label>
+          <input type="text" id="loginUsername" autocomplete="username" placeholder="Il tuo username" data-i18n-attr="placeholder:lp.auth.phUsername" />
         </div>
         <div class="form-group">
-          <label>Password</label>
+          <label data-i18n="lp.auth.password">Password</label>
           <input type="password" id="loginPassword" autocomplete="current-password" placeholder="••••••••" />
         </div>
-        <button type="button" class="forgot-link" onclick="showForgot()">Password dimenticata?</button>
-        <button class="btn-primary" id="loginBtn" onclick="doLogin()">Accedi</button>
+        <button type="button" class="forgot-link" onclick="showForgot()" data-i18n="lp.auth.forgot">Password dimenticata?</button>
+        <button class="btn-primary" id="loginBtn" onclick="doLogin()" data-i18n="lp.auth.login">Accedi</button>
         <div class="msg" id="loginMsg"></div>
       </div>
 
       <div class="auth-panel" id="registerPanel">
         <div class="form-group">
-          <label>Username</label>
-          <input type="text" id="regUsername" autocomplete="username" placeholder="Scegli un username" />
+          <label data-i18n="lp.auth.username">Username</label>
+          <input type="text" id="regUsername" autocomplete="username" placeholder="Scegli un username" data-i18n-attr="placeholder:lp.auth.phChoose" />
         </div>
         <div class="form-group">
-          <label>Email <span class="hint">(usata per il recupero password)</span></label>
-          <input type="email" id="regEmail" autocomplete="email" placeholder="nome@esempio.com" />
+          <label><span data-i18n="lp.auth.email">Email</span> <span class="hint" data-i18n="lp.auth.emailHint">(usata per il recupero password)</span></label>
+          <input type="email" id="regEmail" autocomplete="email" placeholder="nome@esempio.com" data-i18n-attr="placeholder:lp.auth.phEmail" />
         </div>
         <div class="form-group">
-          <label>Password <span class="hint">min. 10 caratteri</span></label>
+          <label><span data-i18n="lp.auth.password">Password</span> <span class="hint" data-i18n="lp.auth.pwHint">min. 10 caratteri</span></label>
           <input type="password" id="regPassword" autocomplete="new-password" placeholder="••••••••" />
         </div>
         <div class="form-group">
-          <label>Conferma password</label>
+          <label data-i18n="lp.auth.pw2">Conferma password</label>
           <input type="password" id="regPassword2" autocomplete="new-password" placeholder="••••••••" />
         </div>
-        <button class="btn-primary" id="regBtn" onclick="doRegister()">Crea account</button>
+        <button class="btn-primary" id="regBtn" onclick="doRegister()" data-i18n="lp.auth.create">Crea account</button>
         <div class="msg" id="regMsg"></div>
       </div>
     </div>
 
     <!-- ── Forgot password ── -->
     <div id="forgotPanel" style="display:none">
-      <button type="button" class="back-link" onclick="hideForgot()">← Torna al login</button>
+      <button type="button" class="back-link" onclick="hideForgot()" data-i18n="lp.auth.back">← Torna al login</button>
       <div class="form-group">
-        <label>Email del tuo account</label>
-        <input type="email" id="forgotEmail" placeholder="nome@esempio.com" />
+        <label data-i18n="lp.auth.accountEmail">Email del tuo account</label>
+        <input type="email" id="forgotEmail" placeholder="nome@esempio.com" data-i18n-attr="placeholder:lp.auth.phEmail" />
       </div>
-      <button class="btn-primary" id="forgotBtn" onclick="doForgot()">Invia link di recupero</button>
+      <button class="btn-primary" id="forgotBtn" onclick="doForgot()" data-i18n="lp.auth.sendLink">Invia link di recupero</button>
       <div class="msg" id="forgotMsg"></div>
       <div id="resetLinkBox" class="reset-box" style="display:none"></div>
     </div>
 
     <!-- ── Reset password (reached via link in email / reset-box) ── -->
     <div id="resetPanel" style="display:none">
-      <div class="auth-logo" style="margin-bottom:12px;font-size:18px">Nuova password</div>
+      <div class="auth-logo" style="margin-bottom:12px;font-size:18px" data-i18n="lp.auth.newPwTitle">Nuova password</div>
       <div class="form-group">
-        <label>Nuova password <span class="hint">min. 10 caratteri</span></label>
+        <label><span data-i18n="lp.auth.newPw">Nuova password</span> <span class="hint" data-i18n="lp.auth.pwHint">min. 10 caratteri</span></label>
         <input type="password" id="resetPassword" autocomplete="new-password" placeholder="••••••••" />
       </div>
       <div class="form-group">
-        <label>Conferma password</label>
+        <label data-i18n="lp.auth.pw2">Conferma password</label>
         <input type="password" id="resetPassword2" autocomplete="new-password" placeholder="••••••••" />
       </div>
-      <button class="btn-primary" id="resetBtn" onclick="doReset()">Imposta nuova password</button>
+      <button class="btn-primary" id="resetBtn" onclick="doReset()" data-i18n="lp.auth.setPw">Imposta nuova password</button>
       <div class="msg" id="resetMsg"></div>
     </div>
-    <p class="auth-foot">Protetto da reCAPTCHA: si applicano la
+    <p class="auth-foot" data-i18n-html="lp.auth.foot">Protetto da reCAPTCHA: si applicano la
       <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Privacy Policy</a> e i
       <a href="https://policies.google.com/terms" target="_blank" rel="noopener">Termini di servizio</a> di Google.</p>
   </div>
@@ -272,52 +301,91 @@
     <!-- ── PRODUCT ── -->
     <div class="lp-rest">
       <section class="lp-section" id="funzioni">
-        <h2>Tutto quello che serve per leggere il tuo portafoglio</h2>
-        <p>Dati di mercato reali, nessun file Excel da mantenere.</p>
+        <h2 data-i18n="lp.feat.h2">Tutto quello che serve per leggere il tuo portafoglio</h2>
+        <p data-i18n="lp.feat.p">Dati di mercato reali, nessun file Excel da mantenere.</p>
         <div class="lp-features">
-          <div class="lp-feature"><div class="ic">🔍</div><h3>Ricerca per ISIN o ticker</h3>
-            <p>ETF, azioni, obbligazioni e crypto: nome, prezzo, valuta e TER vengono compilati da soli.</p></div>
-          <div class="lp-feature"><div class="ic">📄</div><h3>Import dalla banca</h3>
-            <p>Trascina i PDF dei tuoi estratti conto: l'AI riconosce titoli, quantità e prezzi di carico.</p></div>
-          <div class="lp-feature"><div class="ic">🌍</div><h3>Allocazione ed esposizione</h3>
-            <p>Asset class, aree geografiche e valute, anche quelle "nascoste" dentro gli ETF.</p></div>
-          <div class="lp-feature"><div class="ic">🔬</div><h3>Analisi approfondita</h3>
-            <p>Rendimento storico, volatilità, drawdown, correlazioni, frontiera efficiente e Monte Carlo.</p></div>
-          <div class="lp-feature"><div class="ic">🏛️</div><h3>Obbligazioni e titoli di Stato</h3>
-            <p>Quotazioni di Borsa Italiana, rischio sovrano e mappa dei rendimenti a 10, 20 e 30 anni.</p></div>
-          <div class="lp-feature"><div class="ic">🧠</div><h3>Superinvestitori</h3>
-            <p>Confronta le tue posizioni con i portafogli dichiarati dai grandi gestori.</p></div>
+          <div class="lp-feature"><div class="ic">📄</div><h3 data-i18n="lp.feat.pdf.t">Import dal PDF della banca</h3>
+            <p data-i18n="lp.feat.pdf.p">Trascini il dossier titoli o l'estratto conto: l'AI riconosce titoli, quantità e prezzi di carico e compila il portafoglio.</p></div>
+          <div class="lp-feature"><div class="ic">🔍</div><h3 data-i18n="lp.feat.search.t">Ricerca per ISIN o ticker</h3>
+            <p data-i18n="lp.feat.search.p">ETF, azioni, obbligazioni e crypto: nome, prezzo, valuta e TER vengono compilati da soli.</p></div>
+          <div class="lp-feature"><div class="ic">🌍</div><h3 data-i18n="lp.feat.alloc.t">Allocazione ed esposizione</h3>
+            <p data-i18n="lp.feat.alloc.p">Asset class, aree geografiche e valute, anche quelle "nascoste" dentro gli ETF.</p></div>
+          <div class="lp-feature"><div class="ic">🔬</div><h3 data-i18n="lp.feat.deep.t">Analisi approfondita</h3>
+            <p data-i18n="lp.feat.deep.p">Rendimento storico, volatilità, drawdown, correlazioni, frontiera efficiente e Monte Carlo.</p></div>
+          <div class="lp-feature"><div class="ic">🏛️</div><h3 data-i18n="lp.feat.bonds.t">Obbligazioni e titoli di Stato</h3>
+            <p data-i18n="lp.feat.bonds.p">Quotazioni di Borsa Italiana, rischio sovrano e mappa dei rendimenti a 10, 20 e 30 anni.</p></div>
+          <div class="lp-feature"><div class="ic">🏠</div><h3 data-i18n="lp.feat.wealth.t">Patrimonio completo</h3>
+            <p data-i18n="lp.feat.wealth.p">Polizze, fondo pensione, casa con mutuo e private markets insieme ai tuoi portafogli.</p></div>
+        </div>
+      </section>
+
+      <section class="lp-section" id="import-pdf">
+        <h2 data-i18n="lp.pdf.h2">Carica il PDF, al resto pensa lui</h2>
+        <p data-i18n="lp.pdf.p">Non devi ricopiare niente a mano. Trascini nella dashboard il PDF della tua banca e in un minuto hai il portafoglio pronto da analizzare.</p>
+        <ol class="lp-flow">
+          <li><div class="ic">📄</div><div><h4 data-i18n="lp.pdf.s1.t">Trascina i documenti</h4>
+            <p data-i18n="lp.pdf.s1.p">Dossier titoli, estratto conto o rendiconto periodico, anche di banche diverse e più file insieme. Vanno bene PDF e file di testo.</p></div></li>
+          <li><div class="ic">🤖</div><div><h4 data-i18n="lp.pdf.s2.t">L'AI legge il documento</h4>
+            <p data-i18n="lp.pdf.s2.p">Riconosce ISIN, ticker e nome di ogni strumento, quantità, prezzo medio di carico, controvalore e data di acquisto; per le obbligazioni anche cedola e scadenza. Conti correnti e liquidità vengono ignorati.</p></div></li>
+          <li><div class="ic">✅</div><div><h4 data-i18n="lp.pdf.s3.t">Controlli e confermi</h4>
+            <p data-i18n="lp.pdf.s3.p">Vedi l'elenco di quello che ha trovato, scegli cosa importare e correggi il prezzo di carico se serve. Niente entra nel portafoglio senza il tuo ok.</p></div></li>
+          <li><div class="ic">📊</div><div><h4 data-i18n="lp.pdf.s4.t">Il resto è automatico</h4>
+            <p data-i18n="lp.pdf.s4.p">Prezzi, valute, TER, categoria e composizione degli ETF arrivano dai dati di mercato: la dashboard si compila da sola con allocazione, rischio e guadagno dal prezzo di carico.</p></div></li>
+        </ol>
+        <div class="lp-note" data-i18n-html="lp.pdf.privacy"><strong>🔒 Privacy:</strong> il PDF viene letto una sola volta per
+          estrarre le posizioni e poi scartato, non resta sui nostri server. Nessun collegamento al conto e nessuna
+          credenziale bancaria: viene salvato solo il portafoglio che confermi.</div>
+      </section>
+
+      <section class="lp-section" id="pagine">
+        <h2 data-i18n="lp.pages.h2">Cosa trovi dentro, pagina per pagina</h2>
+        <p data-i18n="lp.pages.p">Dopo l'accesso hai cinque strumenti collegati tra loro.</p>
+        <div class="lp-pages">
+          <div class="lp-page"><div class="ic">📊</div><div><h4 data-i18n="lp.pages.dash.t">Dashboard</h4>
+            <p data-i18n="lp.pages.dash.p">Inserisci o importi le posizioni e vedi allocazione per asset class, aree geografiche e valute (anche dentro gli ETF), TER medio, profilo di rischio e guadagno dal prezzo di carico. Salvi più portafogli e li riprendi quando vuoi.</p></div></div>
+          <div class="lp-page"><div class="ic">🔬</div><div><h4 data-i18n="lp.pages.deep.t">Analisi approfondita</h4>
+            <p data-i18n="lp.pages.deep.p">Rendimento reale (TWR e MWR), contributo di ogni titolo, look-through degli ETF, volatilità, drawdown, correlazioni, frontiera efficiente e simulazione Monte Carlo.</p></div></div>
+          <div class="lp-page"><div class="ic">🌍</div><div><h4 data-i18n="lp.pages.yields.t">Rendimenti dei titoli di Stato</h4>
+            <p data-i18n="lp.pages.yields.p">Mappa mondiale dei rendimenti a 10, 20 e 30 anni, variazione del giorno e spread contro il Bund.</p></div></div>
+          <div class="lp-page"><div class="ic">🏠</div><div><h4 data-i18n="lp.pages.other.t">Altri investimenti</h4>
+            <p data-i18n="lp.pages.other.p">Polizze vita con proiezione a scadenza, fondo pensione con simulazione Monte Carlo fino alla pensione (conservativo, bilanciato, dinamico), casa con il mutuo che si scala da solo ogni mese, private markets.</p></div></div>
+          <div class="lp-page"><div class="ic">💼</div><div><h4 data-i18n="lp.pages.nw.t">Patrimonio complessivo</h4>
+            <p data-i18n="lp.pages.nw.p">Tutto insieme: portafogli più altri beni meno i mutui. Patrimonio netto, quota liquida e illiquida, composizione per categoria.</p></div></div>
         </div>
       </section>
 
       <section class="lp-section" id="come-funziona">
-        <h2>Come funziona</h2>
-        <p>Tre passi, pochi minuti.</p>
+        <h2 data-i18n="nav.how">Come funziona</h2>
+        <p data-i18n="lp.how.p">Tre passi, pochi minuti.</p>
         <div class="steps-grid">
-          <div class="step"><div class="step-num">1</div><h4>Crea l'account</h4>
-            <p>Bastano username, email e password. Gratis, senza carta di credito.</p></div>
-          <div class="step"><div class="step-num">2</div><h4>Inserisci le posizioni</h4>
-            <p>In percentuale (con il valore totale) o in euro, oppure importa il PDF della banca.</p></div>
-          <div class="step"><div class="step-num">3</div><h4>Leggi la dashboard</h4>
-            <p>Allocazione, rischio, costi e performance. Salva il portafoglio e riprendilo quando vuoi.</p></div>
+          <div class="step"><div class="step-num">1</div><h4 data-i18n="lp.how.s1.t">Crea l'account</h4>
+            <p data-i18n="lp.how.s1.p">Bastano username, email e password. Gratis, senza carta di credito.</p></div>
+          <div class="step"><div class="step-num">2</div><h4 data-i18n="lp.how.s2.t">Carica il PDF o inserisci le posizioni</h4>
+            <p data-i18n="lp.how.s2.p">Importa il documento della banca oppure aggiungi i titoli per ISIN, in percentuale o in euro.</p></div>
+          <div class="step"><div class="step-num">3</div><h4 data-i18n="lp.how.s3.t">Leggi la dashboard</h4>
+            <p data-i18n="lp.how.s3.p">Allocazione, rischio, costi e performance. Salva il portafoglio e riprendilo quando vuoi.</p></div>
         </div>
       </section>
 
       <section class="lp-section" id="faq">
-        <h2>Domande frequenti</h2>
+        <h2 data-i18n="lp.faq.h2">Domande frequenti</h2>
         <div class="faq-list" style="margin-top:16px">
-          <details class="faq-item"><summary>È davvero gratuito?</summary>
-            <p>Sì. Non ci sono abbonamenti né funzioni a pagamento.</p></details>
-          <details class="faq-item"><summary>Devo collegare il mio conto bancario?</summary>
-            <p>No. Inserisci tu le posizioni oppure carichi un PDF: nessun accesso al tuo conto, nessuna operazione possibile.</p></details>
-          <details class="faq-item"><summary>Da dove arrivano i dati?</summary>
-            <p>Prezzi e composizione degli ETF da Yahoo Finance e justETF, obbligazioni da Borsa Italiana, rendimenti dei titoli di Stato da CNBC e FRED.</p></details>
-          <details class="faq-item"><summary>È una consulenza finanziaria?</summary>
-            <p>No. PortfolioLab è uno strumento di analisi a scopo informativo: non fornisce raccomandazioni di investimento.</p></details>
+          <details class="faq-item"><summary data-i18n="lp.faq.q1">È davvero gratuito?</summary>
+            <p data-i18n="lp.faq.a1">Sì. Non ci sono abbonamenti né funzioni a pagamento.</p></details>
+          <details class="faq-item"><summary data-i18n="lp.faq.q5">Il PDF della mia banca viene salvato?</summary>
+            <p data-i18n="lp.faq.a5">No. Il file viene inviato all'AI solo per leggere le posizioni e poi scartato. Viene salvato solo il portafoglio che confermi.</p></details>
+          <details class="faq-item"><summary data-i18n="lp.faq.q6">Funziona con la mia banca?</summary>
+            <p data-i18n="lp.faq.a6">Con qualsiasi PDF leggibile che elenchi le posizioni: non serve un formato specifico. Con scansioni poco nitide qualche dato può mancare, per questo controlli sempre l'elenco prima di importare.</p></details>
+          <details class="faq-item"><summary data-i18n="lp.faq.q2">Devo collegare il mio conto bancario?</summary>
+            <p data-i18n="lp.faq.a2">No. Inserisci tu le posizioni oppure carichi un PDF: nessun accesso al tuo conto, nessuna operazione possibile.</p></details>
+          <details class="faq-item"><summary data-i18n="lp.faq.q3">Da dove arrivano i dati?</summary>
+            <p data-i18n="lp.faq.a3">Prezzi e composizione degli ETF da Yahoo Finance e justETF, obbligazioni da Borsa Italiana, rendimenti dei titoli di Stato da CNBC e FRED.</p></details>
+          <details class="faq-item"><summary data-i18n="lp.faq.q4">È una consulenza finanziaria?</summary>
+            <p data-i18n="lp.faq.a4">No. PortfolioLab è uno strumento di analisi a scopo informativo: non fornisce raccomandazioni di investimento.</p></details>
         </div>
       </section>
 
-      <div class="disclaimer"><strong>Avvertenza:</strong> i dati possono essere in ritardo o incompleti e i
+      <div class="disclaimer" data-i18n-html="lp.disclaimer"><strong>Avvertenza:</strong> i dati possono essere in ritardo o incompleti e i
         rendimenti passati non garantiscono quelli futuri. Verifica sempre le informazioni prima di investire.</div>
     </div>
   </main>
@@ -325,7 +393,7 @@
   <footer class="footer">
     <div class="footer-inner">
       <div class="footer-logo">📊 PortfolioLab</div>
-      <div class="footer-copy">© 2026 PortfolioLab · Strumento di analisi a scopo informativo</div>
+      <div class="footer-copy" data-i18n="lp.footer">© 2026 PortfolioLab · Strumento di analisi a scopo informativo</div>
     </div>
   </footer>
 
@@ -402,9 +470,9 @@
     async function doLogin() {
       const username = document.getElementById('loginUsername').value.trim();
       const password = document.getElementById('loginPassword').value;
-      if (!username || !password) return setMsg('loginMsg', 'Compila tutti i campi.', 'error');
+      if (!username || !password) return setMsg('loginMsg', I18n.t('lp.msg.fill'), 'error');
       const btn = document.getElementById('loginBtn');
-      btn.disabled = true; btn.textContent = '⏳ Accesso…';
+      btn.disabled = true; btn.textContent = I18n.t('lp.msg.loggingIn');
       try {
         const res  = await fetch('/api/auth/login', {
           method: 'POST',
@@ -412,13 +480,13 @@
           body: JSON.stringify({ username, password, captcha_token: await captchaToken('login') }),
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.detail || 'Errore');
+        if (!res.ok) throw new Error(data.detail || I18n.t('lp.msg.error'));
         localStorage.setItem('auth_token',    data.token);
         localStorage.setItem('auth_username', data.username);
         window.location.href = '/';
       } catch(e) {
         setMsg('loginMsg', e.message, 'error');
-        btn.disabled = false; btn.textContent = 'Accedi';
+        btn.disabled = false; btn.textContent = I18n.t('lp.auth.login');
       }
     }
 
@@ -427,11 +495,11 @@
       const email     = document.getElementById('regEmail').value.trim();
       const password  = document.getElementById('regPassword').value;
       const password2 = document.getElementById('regPassword2').value;
-      if (!username || !email || !password) return setMsg('regMsg', 'Compila tutti i campi.', 'error');
-      if (password !== password2) return setMsg('regMsg', 'Le password non coincidono.', 'error');
-      if (password.length < 10)  return setMsg('regMsg', 'Password troppo corta (min. 10 caratteri).', 'error');
+      if (!username || !email || !password) return setMsg('regMsg', I18n.t('lp.msg.fill'), 'error');
+      if (password !== password2) return setMsg('regMsg', I18n.t('lp.msg.pwMismatch'), 'error');
+      if (password.length < 10)  return setMsg('regMsg', I18n.t('lp.msg.pwShort'), 'error');
       const btn = document.getElementById('regBtn');
-      btn.disabled = true; btn.textContent = '⏳ Registrazione…';
+      btn.disabled = true; btn.textContent = I18n.t('lp.msg.registering');
       try {
         const res  = await fetch('/api/auth/register', {
           method: 'POST',
@@ -439,21 +507,21 @@
           body: JSON.stringify({ username, email, password, captcha_token: await captchaToken('register') }),
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.detail || 'Errore');
+        if (!res.ok) throw new Error(data.detail || I18n.t('lp.msg.error'));
         localStorage.setItem('auth_token',    data.token);
         localStorage.setItem('auth_username', data.username);
         window.location.href = '/';
       } catch(e) {
         setMsg('regMsg', e.message, 'error');
-        btn.disabled = false; btn.textContent = 'Crea account';
+        btn.disabled = false; btn.textContent = I18n.t('lp.auth.create');
       }
     }
 
     async function doForgot() {
       const email = document.getElementById('forgotEmail').value.trim();
-      if (!email) return setMsg('forgotMsg', 'Inserisci la tua email.', 'error');
+      if (!email) return setMsg('forgotMsg', I18n.t('lp.msg.enterEmail'), 'error');
       const btn = document.getElementById('forgotBtn');
-      btn.disabled = true; btn.textContent = '⏳ Invio…';
+      btn.disabled = true; btn.textContent = I18n.t('lp.msg.sending');
       try {
         const res  = await fetch('/api/auth/forgot-password', {
           method: 'POST',
@@ -461,27 +529,27 @@
           body: JSON.stringify({ email, captcha_token: await captchaToken('forgot') }),
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.detail || 'Errore');
+        if (!res.ok) throw new Error(data.detail || I18n.t('lp.msg.error'));
         setMsg('forgotMsg', data.message, 'success');
         if (data.reset_url) {
           const box = document.getElementById('resetLinkBox');
           box.style.display = 'block';
           const a = document.createElement('a');
           a.href = a.textContent = data.reset_url;
-          box.replaceChildren('Modalità sviluppo — usa questo link: ', a);
+          box.replaceChildren(I18n.t('lp.msg.devLink') + ' ', a);
         }
-      } catch(e) { setMsg('forgotMsg', e.message || 'Errore di rete.', 'error'); }
-      finally  { btn.disabled = false; btn.textContent = 'Invia link di recupero'; }
+      } catch(e) { setMsg('forgotMsg', e.message || I18n.t('lp.msg.network'), 'error'); }
+      finally  { btn.disabled = false; btn.textContent = I18n.t('lp.auth.sendLink'); }
     }
 
     async function doReset() {
       const pw  = document.getElementById('resetPassword').value;
       const pw2 = document.getElementById('resetPassword2').value;
-      if (!pw)          return setMsg('resetMsg', 'Inserisci la nuova password.', 'error');
-      if (pw !== pw2)   return setMsg('resetMsg', 'Le password non coincidono.', 'error');
-      if (pw.length < 10) return setMsg('resetMsg', 'Password troppo corta (min. 10 caratteri).', 'error');
+      if (!pw)          return setMsg('resetMsg', I18n.t('lp.msg.enterNewPw'), 'error');
+      if (pw !== pw2)   return setMsg('resetMsg', I18n.t('lp.msg.pwMismatch'), 'error');
+      if (pw.length < 10) return setMsg('resetMsg', I18n.t('lp.msg.pwShort'), 'error');
       const btn = document.getElementById('resetBtn');
-      btn.disabled = true; btn.textContent = '⏳ Salvataggio…';
+      btn.disabled = true; btn.textContent = I18n.t('lp.msg.saving');
       try {
         const res  = await fetch('/api/auth/reset-password', {
           method: 'POST',
@@ -489,13 +557,13 @@
           body: JSON.stringify({ token: _resetToken, new_password: pw }),
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.detail || 'Errore');
-        setMsg('resetMsg', 'Password reimpostata! Ora puoi accedere.', 'success');
+        if (!res.ok) throw new Error(data.detail || I18n.t('lp.msg.error'));
+        setMsg('resetMsg', I18n.t('lp.msg.resetDone'), 'success');
         try { localStorage.removeItem('auth_token'); localStorage.removeItem('auth_username'); } catch { /* ignore */ }
         setTimeout(() => window.location.replace('/login'), 1500);
       } catch(e) {
         setMsg('resetMsg', e.message, 'error');
-        btn.disabled = false; btn.textContent = 'Imposta nuova password';
+        btn.disabled = false; btn.textContent = I18n.t('lp.auth.setPw');
       }
     }
 

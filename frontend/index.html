@@ -10,6 +10,8 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <link rel="stylesheet" href="/static/css/style.css" />
   <script src="/static/js/theme.js"></script>
+  <script src="/static/js/i18n.js"></script>
+  <script src="/static/i18n/common.js"></script>
   <style>
     /* ── Document import ── */
     .doc-import-section { margin-bottom: 18px; }
@@ -118,26 +120,24 @@
         <span class="logo-text">Portfolio<strong>Lab</strong></span>
       </a>
       <div class="nav-links">
-        <a href="#analizza">Analizza</a>
-        <a href="#superinvestitori">Superinvestitori</a>
-        <a href="/analisi" id="navDeepAnalysis">Analisi approfondita</a>
-        <a href="/rendimenti">Rendimenti bond</a>
-        <a href="/altri-investimenti">Altri investimenti</a>
-        <a href="/patrimonio">Patrimonio</a>
-        <a href="#come-funziona">Come funziona</a>
-        <a href="#faq">FAQ</a>
+        <a href="#analizza" data-i18n="nav.analyze">Analizza</a>
+        <a href="#superinvestitori" data-i18n="nav.superinvestors">Superinvestitori</a>
+        <a href="/analisi" id="navDeepAnalysis" data-i18n="nav.analysis">Analisi approfondita</a>
+        <a href="/rendimenti" data-i18n="nav.yields">Rendimenti bond</a>
+        <a href="/altri-investimenti" data-i18n="nav.other">Altri investimenti</a>
+        <a href="/patrimonio" data-i18n="nav.networth">Patrimonio</a>
+        <a href="#come-funziona" data-i18n="nav.how">Come funziona</a>
+        <a href="#faq" data-i18n="nav.faq">FAQ</a>
       </div>
       <div class="nav-cta" style="display:flex;align-items:center;gap:12px">
-        <span class="badge-free">🆓 Gratuito</span>
+        <span class="badge-free" data-i18n="badge.free">🆓 Gratuito</span>
         <span id="navUsername" style="font-size:13px;color:var(--muted)"></span>
         <button id="logoutBtn" onclick="doLogout()"
           style="background:transparent;border:1px solid var(--border);border-radius:6px;
                  padding:5px 12px;color:var(--muted);font-size:12px;cursor:pointer;font-family:inherit;
                  transition:color .2s,border-color .2s"
           onmouseover="this.style.color='var(--text)';this.style.borderColor='var(--text)'"
-          onmouseout="this.style.color='var(--muted)';this.style.borderColor='var(--border)'">
-          Esci
-        </button>
+          onmouseout="this.style.color='var(--muted)';this.style.borderColor='var(--border)'" data-i18n="nav.logout">
       </div>
     </div>
   </nav>

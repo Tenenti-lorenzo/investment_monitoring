@@ -11,6 +11,8 @@
   <script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js" integrity="sha384-Ukv1p/xTma6P4/2bY5KzWBw+ydSpXmhCMtyciIQVDJ1RmOxtCYNMF1uXT9T63H67" crossorigin="anonymous"></script>
   <link rel="stylesheet" href="/static/css/style.css" />
   <script src="/static/js/theme.js"></script>
+  <script src="/static/js/i18n.js"></script>
+  <script src="/static/i18n/common.js"></script>
   <link rel="stylesheet" href="/static/css/analisi.css" />
   <link rel="stylesheet" href="/static/css/rendimenti.css" />
   <script src="/static/js/session.js"></script>
@@ -28,16 +30,16 @@
         <span class="logo-text">Portfolio<strong>Lab</strong></span>
       </a>
       <div class="nav-links">
-        <a href="/">← Dashboard</a>
-        <a href="/analisi">Analisi approfondita</a>
-        <a href="/altri-investimenti">Altri investimenti</a>
-        <a href="/patrimonio">Patrimonio</a>
-        <a href="#mappa">Mappa</a>
-        <a href="#lista">Lista</a>
+        <a href="/" data-i18n="nav.dashboard">← Dashboard</a>
+        <a href="/analisi" data-i18n="nav.analysis">Analisi approfondita</a>
+        <a href="/altri-investimenti" data-i18n="nav.other">Altri investimenti</a>
+        <a href="/patrimonio" data-i18n="nav.networth">Patrimonio</a>
+        <a href="#mappa" data-i18n="nav.map">Mappa</a>
+        <a href="#lista" data-i18n="nav.list">Lista</a>
       </div>
       <div class="nav-cta" style="display:flex;align-items:center;gap:12px">
         <span id="navUsername" style="font-size:13px;color:var(--muted)"></span>
-        <button class="btn btn-ghost btn-sm" type="button" onclick="doLogout()">Esci</button>
+        <button class="btn btn-ghost btn-sm" type="button" onclick="doLogout()" data-i18n="nav.logout">
       </div>
     </div>
   </nav>
