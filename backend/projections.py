@@ -36,6 +36,7 @@ POLICY_DEFAULT_RETURN: dict[InsuranceBranch, float] = {
 }
 MULTIRAMO_DEFAULT_RAMO_I_SHARE = 50.0
 POLICY_DEFAULT_HORIZON = 10
+POLICY_MAX_HORIZON = 60  # caps a far-future maturity date (payload and loop size)
 
 
 def _percentiles(values: np.ndarray) -> Percentiles:
@@ -171,8 +172,8 @@ def project_policy(asset: OtherAsset, today: date) -> PolicyProjection:
     guaranteed: list[float] | None = None
     if asset.insurance_branch != InsuranceBranch.TCM:
         rate, is_default = _policy_return(asset)
-        horizon = (asset.maturity_date.year - today.year
-                   if from_maturity and asset.maturity_date else POLICY_DEFAULT_HORIZON)
+        horizon = min(asset.maturity_date.year - today.year
+                      if from_maturity and asset.maturity_date else POLICY_DEFAULT_HORIZON, POLICY_MAX_HORIZON)
         value, paid = [asset.current_value], [paid_now]
         for _ in range(horizon):
             value.append((value[-1] + premium) * (1 + rate / 100))

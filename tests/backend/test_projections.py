@@ -84,3 +84,8 @@ def test_policy_when_user_return_then_used_and_no_guarantee_on_unit_linked():
 def test_policy_when_tcm_then_protection_only():
     p = project_policy(policy(InsuranceBranch.TCM, current_value=0, insured_capital=250_000), TODAY)
     assert p.years == [] and p.expected_return_pct is None and p.insured_capital == 250_000
+
+
+def test_policy_when_maturity_far_future_then_horizon_capped():
+    p = project_policy(policy(InsuranceBranch.RAMO_I, maturity_date=date(9999, 1, 1)), TODAY)
+    assert len(p.years) == 61
