@@ -12,11 +12,14 @@
      data-i18n-html="key"         → innerHTML (our own dictionary strings only)
      data-i18n-attr="attr:key;…"  → attributes (placeholder, title, aria-label)
      <html data-i18n-title="key"> → document.title
-   JS: I18n.t('key', { var: … }) with {var} placeholders; 'langchange' event.
+   JS: I18n.t('key', { var: … }) with {var} placeholders; I18n.locale for Intl
+   formatting; 'langchange' event (re-render dynamic content on it).
 ═══════════════════════════════════════ */
 window.I18n = (function () {
   const KEY = 'lang';
   const LANGS = { it: 'Italiano', en: 'English', fr: 'Français', de: 'Deutsch', es: 'Español', ja: '日本語' };
+  // BCP 47 locale for Intl number/date formatting in the chosen language.
+  const LOCALES = { it: 'it-IT', en: 'en-GB', fr: 'fr-FR', de: 'de-DE', es: 'es-ES', ja: 'ja-JP' };
   const dict = Object.fromEntries(Object.keys(LANGS).map(l => [l, {}]));
   const original = new WeakMap();  // element → { text, html, attrs } in Italian
   let originalTitle = null;
@@ -107,5 +110,5 @@ window.I18n = (function () {
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
 
-  return { t, set, add, apply, get lang() { return lang; }, LANGS };
+  return { t, set, add, apply, get lang() { return lang; }, get locale() { return LOCALES[lang]; }, LANGS };
 })();
