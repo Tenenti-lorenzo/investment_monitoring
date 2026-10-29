@@ -9,6 +9,7 @@ from backend.wealth_models import (
     AssetValuation,
     CategoryTotal,
     Mortgage,
+    MortgageInput,
     MortgageStatus,
     NetWorthSummary,
     OtherAsset,
@@ -46,44 +47,78 @@ def implied_years(principal: float, annual_rate_pct: float, payment: float) -> f
     return -math.log(1 - principal * r / payment) / math.log(1 + r) / 12
 
 
+def _annuity(principal: float, r: float, n: int) -> float:
+    """Constant instalment repaying `principal` in `n` months at monthly rate `r`."""
+    return principal * r / (1 - (1 + r) ** -n) if r > 0 else principal / n
+
+
+def _present_value(payment: float, r: float, n: int) -> float:
+    """Debt still owed when `n` instalments of `payment` remain."""
+    return payment * (1 - (1 + r) ** -n) / r if r > 0 else payment * n
+
+
+def _check_payment(m: Mortgage, computed: float) -> tuple[bool | None, float | None]:
+    """(declared ≈ computed, duration implied by the declared instalment) for LOAN_TERMS."""
+    if m.monthly_payment is None or m.principal is None:
+        return None, None
+    tolerance = max(PAYMENT_TOLERANCE_EUR, computed * PAYMENT_TOLERANCE_PCT / 100)
+    n_implied = implied_years(m.principal, m.annual_rate_pct, m.monthly_payment)
+    return abs(m.monthly_payment - computed) <= tolerance, round(n_implied, 1) if n_implied is not None else None
+
+
+def _status_from_terms(m: Mortgage, today: date) -> tuple[float, float, int | None, int, date]:
+    """(balance, payment, months paid, months left, end date) from amount, duration, signing date."""
+    assert m.principal is not None and m.years is not None and m.start_date is not None  # model validator
+    n, r = m.years * 12, m.annual_rate_pct / 100 / 12
+    payment = _annuity(m.principal, r, n)
+    paid = min(max(_months_between(m.start_date, today), 0), n)
+    return _present_value(payment, r, n - paid), payment, paid, n - paid, _add_months(m.start_date, n)
+
+
+def _status_from_payment(m: Mortgage, today: date) -> tuple[float, float, int | None, int, date]:
+    """Same, from the instalment and the last instalment date: debt = value of the instalments left."""
+    assert m.monthly_payment is not None and m.end_date is not None  # model validator
+    r = m.annual_rate_pct / 100 / 12
+    left = 0  # instalments due after today (one due today counts as paid)
+    if m.end_date > today:
+        left = _months_between(today, m.end_date)
+        if _add_months(m.end_date, -left) > today:
+            left += 1
+    paid = None
+    if m.principal is not None:
+        n_total = implied_years(m.principal, m.annual_rate_pct, m.monthly_payment)
+        paid = max(round(n_total * 12) - left, 0) if n_total is not None else None
+    return _present_value(m.monthly_payment, r, left), m.monthly_payment, paid, left, m.end_date
+
+
 def mortgage_status(m: Mortgage, today: date, share: float = 1.0) -> MortgageStatus:
-    """Residual debt of a constant-instalment mortgage after the instalments paid by `today`.
+    """Residual debt of a constant-instalment mortgage as of `today`.
 
     Args:
-        m: Loan terms; `balance_override` replaces the computed balance.
+        m: Loan, as contract terms or as instalment + last date; `balance_override`
+            replaces the computed balance.
         today: Valuation date.
         share: Fraction of the loan owed by the user (ownership).
 
     Returns:
         Balance, instalment and schedule, scaled to `share`.
     """
-    n = m.years * 12
-    r = m.annual_rate_pct / 100 / 12
-    payment = m.principal * r / (1 - (1 + r) ** -n) if r > 0 else m.principal / n
-    paid = min(max(_months_between(m.start_date, today), 0), n)
+    terms = m.input_mode == MortgageInput.LOAN_TERMS
+    balance, payment, paid, left, end = (_status_from_terms if terms else _status_from_payment)(m, today)
     if m.balance_override is not None:
         balance = m.balance_override
-    elif r > 0:
-        growth = (1 + r) ** paid
-        balance = m.principal * growth - payment * (growth - 1) / r
-    else:
-        balance = m.principal - payment * paid
     balance = max(balance, 0.0)
-    consistent = years = None
-    if m.monthly_payment is not None:
-        tolerance = max(PAYMENT_TOLERANCE_EUR, payment * PAYMENT_TOLERANCE_PCT / 100)
-        consistent = abs(m.monthly_payment - payment) <= tolerance
-        n_implied = implied_years(m.principal, m.annual_rate_pct, m.monthly_payment)
-        years = round(n_implied, 1) if n_implied is not None else None
+    consistent, years = _check_payment(m, payment) if terms else (None, None)
+    repaid = round(max(0.0, 1 - balance / m.principal) * 100, 1) if m.principal else None
     return MortgageStatus(
         balance=round(balance * share, 2),
         monthly_payment=round(payment * share, 2),
         months_paid=paid,
-        months_left=n - paid,
-        end_date=_add_months(m.start_date, n),
-        repaid_pct=round(max(0.0, 1 - balance / m.principal) * 100, 1),
+        months_left=left,
+        end_date=end,
+        repaid_pct=repaid,
         from_statement=m.balance_override is not None,
-        declared_payment=round(m.monthly_payment * share, 2) if m.monthly_payment is not None else None,
+        declared_payment=round(m.monthly_payment * share, 2) if terms and m.monthly_payment is not None else None,
         payment_consistent=consistent,
         implied_years=years,
     )

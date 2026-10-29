@@ -147,9 +147,13 @@
   }
 
   // ── Form ──────────────────────────────────────
+  const mortgageMode = () => form.querySelector('[name="mortgage_mode"]:checked').value;
   function syncMortgage() {
     const on = fields.has_mortgage.checked;
-    form.querySelectorAll('[data-mortgage]').forEach(el => { el.hidden = !on; });
+    const mode = mortgageMode();
+    form.querySelectorAll('[data-mortgage]').forEach(el => {
+      el.hidden = !on || (el.dataset.mode != null && el.dataset.mode !== mode);
+    });
   }
   function syncBranch() {
     const kindHidden = el => !el.dataset.kinds.split(' ').includes(fields.kind.value);
@@ -173,8 +177,14 @@
         .forEach(f => { fields[f].value = asset[f] ?? ''; });
       const m = asset.mortgage;
       fields.has_mortgage.checked = !!m;
-      if (m) ['principal', 'annual_rate_pct', 'years', 'start_date', 'balance_override', 'monthly_payment']
-        .forEach(f => { fields[f].value = m[f] ?? ''; });
+      if (m) {
+        const simple = m.input_mode === 'payment_end';
+        form.querySelector(`[name="mortgage_mode"][value="${simple ? 'payment_end' : 'loan_terms'}"]`).checked = true;
+        ['annual_rate_pct', 'years', 'start_date', 'end_date', 'balance_override']
+          .forEach(f => { fields[f].value = m[f] ?? ''; });
+        fields[simple ? 'monthly_payment_simple' : 'monthly_payment'].value = m.monthly_payment ?? '';
+        fields[simple ? 'principal_simple' : 'principal'].value = m.principal ?? '';
+      }
     }
     syncMortgage();
     syncBranch();
@@ -213,11 +223,14 @@
       tax_pct: num('tax_pct'),
     });
     if (kind === 'real_estate' && fields.has_mortgage.checked) {
-      body.mortgage = {
-        principal: num('principal'), annual_rate_pct: num('annual_rate_pct') ?? 0, years: num('years'),
-        start_date: fields.start_date.value || null, balance_override: num('balance_override'),
-        monthly_payment: num('monthly_payment'),
-      };
+      const mode = mortgageMode();
+      body.mortgage = mode === 'payment_end'
+        ? { input_mode: mode, monthly_payment: num('monthly_payment_simple'), annual_rate_pct: num('annual_rate_pct') ?? 0,
+            end_date: fields.end_date.value || null, principal: num('principal_simple'),
+            balance_override: num('balance_override') }
+        : { input_mode: mode, principal: num('principal'), annual_rate_pct: num('annual_rate_pct') ?? 0,
+            years: num('years'), start_date: fields.start_date.value || null,
+            monthly_payment: num('monthly_payment'), balance_override: num('balance_override') };
     }
     return body;
   }
@@ -226,6 +239,7 @@
     if (!Array.isArray(detail)) return detail || 'Dati non validi';
     const names = { name: 'nome', current_value: 'valore', principal: 'importo mutuo', years: 'durata',
       start_date: 'data stipula', annual_rate_pct: 'tasso', ownership_pct: 'quota', monthly_payment: 'rata',
+      end_date: 'data ultima rata', mortgage: 'dati del mutuo',
       birth_year: 'anno di nascita', retirement_age: 'età pensione', tax_pct: 'tasse',
       expected_return_pct: 'rendimento atteso', ramo_i_share_pct: 'quota Ramo I', insured_capital: 'capitale assicurato' };
     return 'Controlla: ' + [...new Set(detail.map(d => names[d.loc?.[d.loc.length - 1]] || d.loc?.slice(-1)[0]))].join(', ');
@@ -251,6 +265,7 @@
     }
   });
   fields.has_mortgage.addEventListener('change', syncMortgage);
+  form.querySelectorAll('[name="mortgage_mode"]').forEach(r => r.addEventListener('change', syncMortgage));
   fields.insurance_branch.addEventListener('change', syncBranch);
   $('wlCancel').addEventListener('click', closeForm);
   $('wlModal').addEventListener('click', ev => { if (ev.target === $('wlModal')) closeForm(); });

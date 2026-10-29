@@ -42,6 +42,15 @@
 .wl-error { color: var(--critical-text); font-size: 13px; margin-top: 10px; }
 [hidden] { display: none !important; }
 
+.wl-modes { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.wl-modes label {
+  display: flex; gap: 8px; align-items: flex-start; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 9px 10px; cursor: pointer; background: var(--bg); font-size: 13px;
+}
+.wl-modes label:has(input:checked) { border-color: var(--accent2); }
+.wl-modes input { accent-color: var(--accent); margin-top: 3px; }
+.wl-modes small { display: block; color: var(--muted); font-size: 11.5px; margin-top: 1px; }
+
 /* Net worth */
 .nw-hero .kpi-value { font-size: 26px; }
 .nw-pick { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
@@ -73,5 +82,5 @@
 .wl-pension .an-explain .btn { vertical-align: middle; }
 
 @media (max-width: 560px) {
-  .wl-form, .wl-form fieldset { grid-template-columns: 1fr; }
+  .wl-form, .wl-form fieldset, .wl-modes { grid-template-columns: 1fr; }
 }

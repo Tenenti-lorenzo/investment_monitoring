@@ -78,8 +78,8 @@
         <div class="row"><span>Rata mensile</span><span>${eur(m.monthly_payment)}</span></div>
         ${m.payment_consistent === false ? `<div class="row"><span class="neg">⚠️ Rata banca diversa</span><span>${eur(m.declared_payment)}</span></div>` : ''}
         <div class="row"><span>Mancano</span><span>${left} · fine ${fmtDate(m.end_date)}</span></div>
-        <div class="row"><span>Rimborsato</span><span>${pct(m.repaid_pct)}</span></div>
-        <div class="nw-progress"><span style="width:${m.repaid_pct}%"></span></div></div>`;
+        ${m.repaid_pct == null ? '' : `<div class="row"><span>Rimborsato</span><span>${pct(m.repaid_pct)}</span></div>
+        <div class="nw-progress"><span style="width:${m.repaid_pct}%"></span></div>`}</div>`;
     }).join('') || '<p class="wl-empty">Nessun mutuo. Si aggiunge da un immobile in <a href="/altri-investimenti#sec-real_estate">Altri investimenti</a>.</p>';
   }
 

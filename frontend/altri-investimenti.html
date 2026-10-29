@@ -129,21 +129,37 @@
         <fieldset data-kinds="real_estate">
           <legend>Mutuo</legend>
           <label class="wl-check"><input type="checkbox" name="has_mortgage" /> C'è un mutuo su questo immobile</label>
-          <label class="an-field" data-mortgage>Importo erogato (€)
+          <div class="wl-modes full" data-mortgage role="radiogroup" aria-label="Come inserire il mutuo">
+            <label><input type="radio" name="mortgage_mode" value="payment_end" checked />
+              <span><strong>So la rata e quando finisce</strong><small>rata, TAN, data ultima rata</small></span></label>
+            <label><input type="radio" name="mortgage_mode" value="loan_terms" />
+              <span><strong>Ho il contratto</strong><small>importo, TAN, durata, data stipula</small></span></label>
+          </div>
+          <label class="an-field" data-mortgage data-mode="payment_end">Rata mensile (€)
+            <input name="monthly_payment_simple" type="number" min="0" step="0.01" placeholder="es. 850" /></label>
+          <label class="an-field" data-mortgage>TAN annuo (%)
+            <input name="annual_rate_pct" type="number" min="0" max="30" step="0.01" placeholder="es. 3,2" /></label>
+          <label class="an-field" data-mortgage data-mode="payment_end">Data ultima rata
+            <input name="end_date" type="date" /></label>
+          <label class="an-field" data-mortgage data-mode="payment_end">Importo erogato (€, facoltativo)
+            <input name="principal_simple" type="number" min="1" step="1000" placeholder="per la % rimborsata" /></label>
+          <label class="an-field" data-mortgage data-mode="loan_terms">Importo erogato (€)
             <input name="principal" type="number" min="1" step="1000" /></label>
-          <label class="an-field" data-mortgage>Tasso annuo (%)
-            <input name="annual_rate_pct" type="number" min="0" max="30" step="0.01" /></label>
-          <label class="an-field" data-mortgage>Durata (anni)
+          <label class="an-field" data-mortgage data-mode="loan_terms">Durata (anni)
             <input name="years" type="number" min="1" max="40" step="1" /></label>
-          <label class="an-field" data-mortgage>Data stipula
+          <label class="an-field" data-mortgage data-mode="loan_terms">Data stipula
             <input name="start_date" type="date" /></label>
-          <label class="an-field" data-mortgage>Rata mensile da banca (€, per controllo)
+          <label class="an-field" data-mortgage data-mode="loan_terms">Rata mensile da banca (€, per controllo)
             <input name="monthly_payment" type="number" min="0" step="0.01" /></label>
-          <label class="an-field" data-mortgage>Debito residuo da estratto conto (€, facoltativo)
+          <label class="an-field full" data-mortgage>Debito residuo da estratto conto (€, facoltativo)
             <input name="balance_override" type="number" min="0" step="100" /></label>
-          <p class="wl-hint" data-mortgage>Senza debito residuo lo calcoliamo dal piano di ammortamento alla francese
-            (rata costante). Con tasso variabile o rinegoziazioni usa il valore dell'estratto conto. Valore e mutuo
-            sono riferiti all'intero immobile: la quota di proprietà li riproporziona.</p>
+          <p class="wl-hint" data-mortgage data-mode="payment_end">Il debito residuo è il valore delle rate che mancano
+            all'ultima, scontate al TAN: scende da solo ogni mese. Trovi rata, TAN e data ultima rata nel piano di
+            ammortamento o nell'app della banca.</p>
+          <p class="wl-hint" data-mortgage data-mode="loan_terms">Rata e debito residuo li calcoliamo dal piano alla
+            francese (rata costante); se metti la rata della banca controlliamo che i dati tornino.</p>
+          <p class="wl-hint" data-mortgage>Tasso variabile o rinegoziazioni: usa il debito residuo dell'estratto conto.
+            Valore e mutuo sono riferiti all'intero immobile: la quota di proprietà li riproporziona.</p>
         </fieldset>
 
         <label class="an-field full">Note

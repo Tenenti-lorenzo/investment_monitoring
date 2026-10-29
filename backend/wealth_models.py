@@ -7,8 +7,9 @@ Only data classes live here: no I/O, no computation.
 
 from datetime import date
 from enum import StrEnum
+from typing import Self
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 ASSET_ID_PATTERN = r"^[0-9a-f]{32}$"
 
@@ -49,15 +50,32 @@ class PensionProfile(StrEnum):
 # ─── Stored items ─────────────────────────────────────────────────────────────
 
 
-class Mortgage(BaseModel):
-    """French (constant-instalment) amortisation, monthly payments."""
+class MortgageInput(StrEnum):
+    PAYMENT_END = "payment_end"  # instalment + rate + last instalment date (what borrowers know)
+    LOAN_TERMS = "loan_terms"  # amount + rate + duration + signing date (from the contract)
 
-    principal: float = Field(gt=0)  # EUR borrowed
+
+class Mortgage(BaseModel):
+    """French (constant-instalment) amortisation, monthly payments, entered either way."""
+
+    input_mode: MortgageInput = MortgageInput.LOAN_TERMS  # items saved before the option existed
     annual_rate_pct: float = Field(ge=0, le=30)
-    years: int = Field(ge=1, le=40)
-    start_date: date  # first instalment falls one month later
+    principal: float | None = Field(None, gt=0)  # EUR borrowed; optional with PAYMENT_END (% repaid)
+    years: int | None = Field(None, ge=1, le=40)
+    start_date: date | None = None  # first instalment falls one month later
+    end_date: date | None = None  # last instalment
+    # PAYMENT_END: the instalment itself; LOAN_TERMS: optional cross-check against the bank's
+    monthly_payment: float | None = Field(None, gt=0)
     balance_override: float | None = Field(None, ge=0)  # residual debt from the bank statement
-    monthly_payment: float | None = Field(None, gt=0)  # instalment on the bank statement: cross-check only
+
+    @model_validator(mode="after")
+    def _required_for_mode(self) -> Self:
+        need = (("monthly_payment", "end_date") if self.input_mode == MortgageInput.PAYMENT_END
+                else ("principal", "years", "start_date"))
+        missing = [f for f in need if getattr(self, f) is None]
+        if missing:
+            raise ValueError(f"missing for {self.input_mode.value}: {', '.join(missing)}")
+        return self
 
 
 class OtherAsset(BaseModel):
@@ -121,10 +139,10 @@ class NetWorthRequest(BaseModel):
 class MortgageStatus(BaseModel):
     balance: float  # residual debt, user's share
     monthly_payment: float  # user's share
-    months_paid: int
+    months_paid: int | None  # None: signing date unknown (PAYMENT_END without amount)
     months_left: int
     end_date: date
-    repaid_pct: float
+    repaid_pct: float | None  # None: amount borrowed unknown
     from_statement: bool  # balance typed by the user instead of computed
     declared_payment: float | None = None  # user's share of the instalment typed from the bank
     payment_consistent: bool | None = None  # declared ≈ computed (None: nothing declared)

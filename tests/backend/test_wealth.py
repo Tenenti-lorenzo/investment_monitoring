@@ -125,3 +125,42 @@ def test_mortgage_when_payment_below_interest_then_no_implied_duration():
 def test_mortgage_when_nothing_declared_then_no_check():
     s = mortgage_status(LOAN, date(2025, 1, 15))
     assert s.payment_consistent is None and s.declared_payment is None
+
+
+# ─── Mortgage entered as instalment + last instalment date ────────────────────
+
+SIMPLE = Mortgage(input_mode="payment_end", annual_rate_pct=3.0, monthly_payment=948.42, end_date=date(2045, 1, 15))
+
+
+def test_mortgage_simple_when_same_loan_then_same_balance_as_contract_terms():
+    today = date(2025, 1, 20)  # 60 instalments paid, 240 left
+    assert mortgage_status(SIMPLE, today).balance == pytest.approx(mortgage_status(LOAN, today).balance, abs=1)
+    assert mortgage_status(SIMPLE, today).months_left == 240
+
+
+def test_mortgage_simple_when_a_month_passes_then_debt_decreases():
+    before = mortgage_status(SIMPLE, date(2025, 1, 14)).balance  # Jan instalment still due
+    after = mortgage_status(SIMPLE, date(2025, 1, 15)).balance
+    assert after < before
+
+
+def test_mortgage_simple_when_no_amount_then_no_repaid_pct():
+    s = mortgage_status(SIMPLE, date(2025, 1, 20))
+    assert s.repaid_pct is None and s.months_paid is None and s.payment_consistent is None
+
+
+def test_mortgage_simple_when_amount_given_then_repaid_pct_and_months_paid():
+    s = mortgage_status(SIMPLE.model_copy(update={"principal": 200_000}), date(2025, 1, 20))
+    assert s.repaid_pct == pytest.approx(14.5, abs=0.1) and s.months_paid == 60
+
+
+def test_mortgage_simple_when_last_instalment_passed_then_zero():
+    s = mortgage_status(SIMPLE, date(2045, 2, 1))
+    assert s.balance == 0 and s.months_left == 0
+
+
+def test_mortgage_when_mode_fields_missing_then_invalid():
+    with pytest.raises(ValueError, match="end_date"):
+        Mortgage(input_mode="payment_end", annual_rate_pct=3, monthly_payment=900)
+    with pytest.raises(ValueError, match="principal"):
+        Mortgage(annual_rate_pct=3, years=20, start_date=date(2020, 1, 1))
