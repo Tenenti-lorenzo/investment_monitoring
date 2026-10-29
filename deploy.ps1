@@ -122,9 +122,14 @@ function Invoke-LambdaUpdate([string]$ecrUrl) {
     $lambdaFn = Assert-TfOutput "lambda_function_name" ""
     Write-Host ""
     Write-Host "==> Aggiorno Lambda image" -ForegroundColor Cyan
+    # Pin the digest just pushed: re-sending the same ":latest" URI can leave the old image running.
+    $repo   = $ecrUrl.Split("/")[-1]
+    $digest = aws ecr describe-images --repository-name $repo --image-ids imageTag=latest `
+        --region $REGION --query "imageDetails[0].imageDigest" --output text
+    if ($LASTEXITCODE -ne 0 -or -not $digest) { throw "digest immagine non trovato su ECR" }
     aws lambda update-function-code `
         --function-name $lambdaFn `
-        --image-uri "${ecrUrl}:latest" `
+        --image-uri "${ecrUrl}@${digest}" `
         --region $REGION | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "lambda update-function-code fallito" }
     Write-Host "    Lambda aggiornata."
