@@ -1,11 +1,15 @@
 /* PortfolioLab – strings shared by every page (navbar, theme, language). */
 I18n.add({
   it: {
+    'nav.more': 'Altro',
+    'nav.menu': 'Menu',
     'lang.label': 'Lingua',
     'theme.toLight': 'Passa al tema chiaro',
     'theme.toDark': 'Passa al tema scuro',
   },
   en: {
+    'nav.more': 'More',
+    'nav.menu': 'Menu',
     'lang.label': 'Language',
     'theme.toLight': 'Switch to light theme',
     'theme.toDark': 'Switch to dark theme',
@@ -30,6 +34,8 @@ I18n.add({
     'badge.free': '🆓 Free',
   },
   fr: {
+    'nav.more': 'Plus',
+    'nav.menu': 'Menu',
     'lang.label': 'Langue',
     'theme.toLight': 'Passer au thème clair',
     'theme.toDark': 'Passer au thème sombre',
@@ -54,6 +60,8 @@ I18n.add({
     'badge.free': '🆓 Gratuit',
   },
   de: {
+    'nav.more': 'Mehr',
+    'nav.menu': 'Menü',
     'lang.label': 'Sprache',
     'theme.toLight': 'Zum hellen Design wechseln',
     'theme.toDark': 'Zum dunklen Design wechseln',
@@ -78,6 +86,8 @@ I18n.add({
     'badge.free': '🆓 Kostenlos',
   },
   es: {
+    'nav.more': 'Más',
+    'nav.menu': 'Menú',
     'lang.label': 'Idioma',
     'theme.toLight': 'Cambiar al tema claro',
     'theme.toDark': 'Cambiar al tema oscuro',
@@ -102,6 +112,8 @@ I18n.add({
     'badge.free': '🆓 Gratis',
   },
   ja: {
+    'nav.more': 'その他',
+    'nav.menu': 'メニュー',
     'lang.label': '言語',
     'theme.toLight': 'ライトテーマに切り替え',
     'theme.toDark': 'ダークテーマに切り替え',

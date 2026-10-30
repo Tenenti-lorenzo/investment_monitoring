@@ -153,18 +153,33 @@ code { font-family: var(--font-mono); background: var(--border); padding: 2px 6p
   font-weight: 500;
 }
 .logo-icon { font-size: 22px; }
-/* Labels never wrap (longer in fr/de/es): when they don't fit, the links
-   scroll sideways inside the bar and the right-hand controls stay visible. */
+/* Labels never wrap (longer in fr/de/es): the bar takes the free width and
+   nav-menu.js moves the links that don't fit into the "Altro ▾" dropdown
+   (a ☰ menu with every link when none fit, e.g. on phones). */
 .nav-links {
-  display: flex; gap: 24px; flex: 0 1 auto; min-width: 0;
-  overflow-x: auto; padding: 8px 20px 8px 0; scrollbar-width: none;
-  /* fade on the right edge hints that more links scroll into view */
-  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent);
-  mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent);
+  display: flex; align-items: center; gap: 24px; flex: 1 1 0; min-width: 0;
 }
-.nav-links::-webkit-scrollbar { display: none; }
 .nav-links a { color: var(--muted); font-size: 14px; font-weight: 500; transition: color .2s; white-space: nowrap; }
 .nav-links a:hover { color: var(--text); }
+.nav-more { position: relative; flex-shrink: 0; }
+.nav-more[hidden] { display: none; }
+.nav-more-btn {
+  background: transparent; border: 1px solid transparent; border-radius: 8px;
+  margin-left: -8px; padding: 5px 8px; color: var(--muted); font: 500 14px var(--font);
+  cursor: pointer; white-space: nowrap; transition: color .2s, border-color .2s;
+}
+.nav-more-btn:hover, .nav-more.open .nav-more-btn { color: var(--text); border-color: var(--border); }
+.nav-more-btn.is-burger { margin-left: 0; font-size: 18px; line-height: 1; padding: 6px 10px; border-color: var(--border); }
+.nav-more-menu {
+  display: none; position: absolute; top: calc(100% + 10px); left: 0;
+  min-width: 220px; max-width: calc(100vw - 32px); padding: 6px;
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  box-shadow: var(--shadow); z-index: 110;
+}
+.nav-more.open .nav-more-menu { display: flex; flex-direction: column; }
+.nav-links .nav-more-menu a { padding: 9px 12px; border-radius: 8px; }
+.nav-links .nav-more-menu a:hover { background: var(--bg2); }
+.nav-links .nav-more-menu a::after { display: none; }
 .nav-cta { margin-left: auto; flex-shrink: 0; white-space: nowrap; }
 .nav-cta > * { flex-shrink: 0; }
 @media (max-width: 1280px) {
@@ -172,7 +187,6 @@ code { font-family: var(--font-mono); background: var(--border); padding: 2px 6p
   .nav-links { gap: 18px; }
   .nav-cta:has(#navUsername) .badge-free { display: none; }
 }
-@media (max-width: 900px) { .nav-links { display: none; } }
 /* Phones: language picker + theme + logout ("Déconnexion", "Abmelden"…) need the room */
 @media (max-width: 480px) {
   .nav-logo .logo-text { display: none; }
@@ -653,7 +667,6 @@ small { font-size: 11px; color: var(--muted); }
   .dash-grid-3, .dash-grid-2, .steps-grid { grid-template-columns: 1fr; }
   .metriche-grid { grid-template-columns: 1fr 1fr; }
   .hero h1 { font-size: 26px; }
-  .nav-links { display: none; }
   .nav-inner { padding: 0 16px; gap: 12px; }
   .badge-free { display: none; }
   #navUsername { display: none; }
