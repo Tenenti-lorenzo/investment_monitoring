@@ -153,10 +153,31 @@ code { font-family: var(--font-mono); background: var(--border); padding: 2px 6p
   font-weight: 500;
 }
 .logo-icon { font-size: 22px; }
-.nav-links { display: flex; gap: 24px; }
-.nav-links a { color: var(--muted); font-size: 14px; font-weight: 500; transition: color .2s; }
+/* Labels never wrap (longer in fr/de/es): when they don't fit, the links
+   scroll sideways inside the bar and the right-hand controls stay visible. */
+.nav-links {
+  display: flex; gap: 24px; flex: 0 1 auto; min-width: 0;
+  overflow-x: auto; padding: 8px 20px 8px 0; scrollbar-width: none;
+  /* fade on the right edge hints that more links scroll into view */
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent);
+}
+.nav-links::-webkit-scrollbar { display: none; }
+.nav-links a { color: var(--muted); font-size: 14px; font-weight: 500; transition: color .2s; white-space: nowrap; }
 .nav-links a:hover { color: var(--text); }
-.nav-cta { margin-left: auto; }
+.nav-cta { margin-left: auto; flex-shrink: 0; white-space: nowrap; }
+.nav-cta > * { flex-shrink: 0; }
+@media (max-width: 1280px) {
+  .nav-inner { gap: 20px; }
+  .nav-links { gap: 18px; }
+  .nav-cta:has(#navUsername) .badge-free { display: none; }
+}
+@media (max-width: 900px) { .nav-links { display: none; } }
+/* Phones: language picker + theme + logout ("Déconnexion", "Abmelden"…) need the room */
+@media (max-width: 480px) {
+  .nav-logo .logo-text { display: none; }
+  .nav-cta { gap: 8px !important; }
+}
 .badge-free {
   background: linear-gradient(135deg, #22d3a022, #6366f122);
   border: 1px solid #22d3a044;
@@ -441,6 +462,8 @@ small { font-size: 11px; color: var(--muted); }
   grid-template-columns: 1fr 1fr;
   gap: 20px;
 }
+/* Grid items may shrink below their content (long holding names ellipsize on phones) */
+.dash-grid-2 > *, .dash-grid-3 > * { min-width: 0; }
 .hidden { display: none !important; }
 
 /* Donut */
@@ -633,6 +656,7 @@ small { font-size: 11px; color: var(--muted); }
   .nav-links { display: none; }
   .nav-inner { padding: 0 16px; gap: 12px; }
   .badge-free { display: none; }
+  #navUsername { display: none; }
 }
 
 /* ── SUPERINVESTITORI ─────────────────────── */

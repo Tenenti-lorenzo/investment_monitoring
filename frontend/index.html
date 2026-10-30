@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="it">
+<html lang="it" data-i18n-title="dash.title">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -12,6 +12,14 @@
   <script src="/static/js/theme.js"></script>
   <script src="/static/js/i18n.js"></script>
   <script src="/static/i18n/common.js"></script>
+  <script src="/static/i18n/session.js"></script>
+  <script src="/static/i18n/dashboard.js"></script>
+  <script src="/static/i18n/dashboard.en.js"></script>
+  <script src="/static/i18n/dashboard.fr.js"></script>
+  <script src="/static/i18n/dashboard.de.js"></script>
+  <script src="/static/i18n/dashboard.es.js"></script>
+  <script src="/static/i18n/dashboard.ja.js"></script>
+  <script src="/static/i18n/superinvestors.js"></script>
   <style>
     /* ── Document import ── */
     .doc-import-section { margin-bottom: 18px; }
@@ -101,7 +109,7 @@
   <!-- ══════════ TOP AD BANNER (728×90 leaderboard) ══════════ -->
   <div class="promo-banner-top">
     <div class="promo-slot promo-leaderboard" data-promo-slot="top-leaderboard">
-      <span class="promo-label">Pubblicità</span>
+      <span class="promo-label" data-i18n="dash.ad.label">Pubblicità</span>
       <!-- Google AdSense: sostituisci con il tuo codice -->
       <!--
       <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-XXXXXXXXXXXXXXXX" crossorigin="anonymous"></script>
@@ -137,7 +145,7 @@
                  padding:5px 12px;color:var(--muted);font-size:12px;cursor:pointer;font-family:inherit;
                  transition:color .2s,border-color .2s"
           onmouseover="this.style.color='var(--text)';this.style.borderColor='var(--text)'"
-          onmouseout="this.style.color='var(--muted)';this.style.borderColor='var(--border)'" data-i18n="nav.logout">
+          onmouseout="this.style.color='var(--muted)';this.style.borderColor='var(--border)'" data-i18n="nav.logout">Esci</button>
       </div>
     </div>
   </nav>
@@ -160,9 +168,9 @@
     <div class="hero-bg"></div>
     <div class="container">
       <div class="hero-content">
-        <div class="hero-badge">📈 Analisi portafoglio real-time</div>
-        <h1>Analizza il tuo portafoglio<br /><span class="gradient-text">per ISIN o Ticker</span></h1>
-        <p class="hero-sub">Inserisci i tuoi strumenti finanziari, specifica l'allocazione e ottieni un dashboard completo con asset allocation, esposizione geografica e metriche di rischio.</p>
+        <div class="hero-badge" data-i18n="dash.hero.badge">📈 Analisi portafoglio real-time</div>
+        <h1 data-i18n-html="dash.hero.h1">Analizza il tuo portafoglio<br /><span class="gradient-text">per ISIN o Ticker</span></h1>
+        <p class="hero-sub" data-i18n="dash.hero.sub">Inserisci i tuoi strumenti finanziari, specifica l'allocazione e ottieni un dashboard completo con asset allocation, esposizione geografica e metriche di rischio.</p>
       </div>
     </div>
   </section>
@@ -176,36 +184,36 @@
       <!-- ── INPUT PORTAFOGLIO ── -->
       <section class="card" id="input-section">
         <div class="card-header">
-          <h2>🔍 Costruisci il tuo portafoglio</h2>
-          <p>Cerca per ISIN (es. <code>IE00B3RBWM25</code>) o Ticker (es. <code>MSFT</code>)</p>
+          <h2 data-i18n="dash.input.title">🔍 Costruisci il tuo portafoglio</h2>
+          <p data-i18n-html="dash.input.sub">Cerca per ISIN (es. <code>IE00B3RBWM25</code>) o Ticker (es. <code>MSFT</code>)</p>
         </div>
 
         <!-- Restore saved portfolio banner -->
         <div class="restore-banner hidden" id="restoreBanner">
-          <span style="font-size:14px;color:var(--muted)" id="restoreBannerText">Portafoglio salvato trovato.</span>
+          <span style="font-size:14px;color:var(--muted)" id="restoreBannerText" data-i18n="dash.restore.text">Portafoglio salvato trovato.</span>
           <div style="display:flex;gap:8px">
-            <button class="btn btn-primary btn-sm" id="restoreBtn" type="button">Ripristina</button>
-            <button class="btn btn-ghost btn-sm" id="dismissRestoreBtn" type="button">Ignora</button>
+            <button class="btn btn-primary btn-sm" id="restoreBtn" type="button" data-i18n="dash.restore.btn">Ripristina</button>
+            <button class="btn btn-ghost btn-sm" id="dismissRestoreBtn" type="button" data-i18n="dash.restore.dismiss">Ignora</button>
           </div>
         </div>
 
         <!-- Import from bank document -->
         <div class="doc-import-section">
           <button class="doc-toggle-btn" id="docToggleBtn" type="button">
-            <span>📄 Importa da documento bancario</span>
+            <span data-i18n="dash.doc.toggle">📄 Importa da documento bancario</span>
             <span id="docToggleArrow">▼</span>
           </button>
           <div class="doc-import-body hidden" id="docImportBody">
             <div class="drop-zone" id="dropZone">
               <div class="drop-zone-icon">📂</div>
-              <p style="margin:0 0 10px">Trascina i PDF delle tue banche qui<br/>
+              <p style="margin:0 0 10px" data-i18n-html="dash.doc.drop">Trascina i PDF delle tue banche qui<br/>
                 <small>Più file e banche diverse contemporaneamente</small></p>
               <input type="file" id="fileInput" accept=".pdf,.txt" multiple style="display:none" />
-              <button class="btn btn-ghost btn-sm" id="browseBtn" type="button">Scegli file</button>
+              <button class="btn btn-ghost btn-sm" id="browseBtn" type="button" data-i18n="dash.doc.browse">Scegli file</button>
             </div>
             <div class="uploaded-files-list" id="uploadedFilesList"></div>
             <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-              <button class="btn btn-primary" id="extractBtn" style="display:none" type="button">
+              <button class="btn btn-primary" id="extractBtn" style="display:none" type="button" data-i18n="dash.doc.extract">
                 🤖 Estrai con AI
               </button>
               <span id="extractStatus" style="color:var(--muted);font-size:13px"></span>
@@ -216,8 +224,8 @@
         <!-- Search bar -->
         <div class="search-bar-wrap">
           <div class="search-bar">
-            <input type="text" id="searchInput" placeholder="ISIN o Ticker… es. IE00B3RBWM25 o MSFT" autocomplete="off" />
-            <button id="searchBtn" class="btn btn-primary">Cerca</button>
+            <input type="text" id="searchInput" placeholder="ISIN o Ticker… es. IE00B3RBWM25 o MSFT" autocomplete="off" data-i18n-attr="placeholder:dash.search.ph" />
+            <button id="searchBtn" class="btn btn-primary" data-i18n="dash.search.btn">Cerca</button>
           </div>
           <div id="searchResult" class="search-result hidden"></div>
         </div>
@@ -227,15 +235,15 @@
           <table class="holdings-table" id="holdingsTable">
             <thead>
               <tr>
-                <th>Strumento</th>
-                <th>Categoria</th>
+                <th data-i18n="dash.tbl.instrument">Strumento</th>
+                <th data-i18n="dash.tbl.category">Categoria</th>
                 <th id="allocHeader">Allocazione %</th>
                 <th></th>
               </tr>
             </thead>
             <tbody id="holdingsTbody">
               <tr class="empty-row" id="emptyRow">
-                <td colspan="4" class="empty-cell">Cerca un ISIN o Ticker per aggiungere al portafoglio</td>
+                <td colspan="4" class="empty-cell" data-i18n="dash.tbl.empty">Cerca un ISIN o Ticker per aggiungere al portafoglio</td>
               </tr>
             </tbody>
           </table>
@@ -243,11 +251,11 @@
 
         <!-- Valore complessivo (solo modalità %): permette di ricavare importi e n. titoli -->
         <div class="portfolio-total-row" id="portfolioTotalRow">
-          <label for="portfolioTotalInput">💼 Valore complessivo del portafoglio
+          <label for="portfolioTotalInput" data-i18n-html="dash.portTotal.label">💼 Valore complessivo del portafoglio
             <span class="hint">Con le percentuali serve per calcolare l'importo e il numero di titoli di ogni posizione</span>
           </label>
           <div class="pct-input-wrap">
-            <input type="number" id="portfolioTotalInput" min="0" step="100" placeholder="es. 50000" />
+            <input type="number" id="portfolioTotalInput" min="0" step="100" placeholder="es. 50000" data-i18n-attr="placeholder:dash.portTotal.ph" />
             <span>EUR</span>
           </div>
         </div>
@@ -263,26 +271,26 @@
         </div>
 
         <div class="action-row">
-          <button id="analyzeBtn" class="btn btn-primary btn-lg" disabled>📊 Genera Dashboard</button>
+          <button id="analyzeBtn" class="btn btn-primary btn-lg" disabled data-i18n="dash.btn.analyze">📊 Genera Dashboard</button>
           <button id="modeToggle" class="btn btn-ghost">EUR Inserisci importi</button>
-          <button id="deepAnalysisBtn" class="btn btn-ghost" type="button" disabled>🔬 Analisi approfondita</button>
+          <button id="deepAnalysisBtn" class="btn btn-ghost" type="button" disabled data-i18n="dash.btn.deep">🔬 Analisi approfondita</button>
           <span id="saveBtnGroup" style="display:none;align-items:center;gap:6px">
-            <input id="portfolioNameInput" type="text" placeholder="Nome portafoglio…"
+            <input id="portfolioNameInput" type="text" placeholder="Nome portafoglio…" data-i18n-attr="placeholder:dash.save.ph"
               style="background:var(--bg2);border:1px solid var(--border);border-radius:6px;
                      padding:6px 10px;color:var(--text);font-size:13px;font-family:inherit;
                      outline:none;width:160px" />
-            <button id="saveBtn" class="btn btn-ghost" type="button">💾 Salva</button>
+            <button id="saveBtn" class="btn btn-ghost" type="button" data-i18n="dash.save.btn">💾 Salva</button>
           </span>
           <button id="loadBtn" class="btn btn-ghost" type="button">📂 Carica salvato</button>
-          <button id="demoBtn" class="btn btn-ghost">Carica portafoglio demo</button>
-          <button id="clearBtn" class="btn btn-ghost btn-danger">🗑 Svuota</button>
+          <button id="demoBtn" class="btn btn-ghost" data-i18n="dash.btn.demo">Carica portafoglio demo</button>
+          <button id="clearBtn" class="btn btn-ghost btn-danger" data-i18n="dash.btn.clear">🗑 Svuota</button>
         </div>
 
         <!-- ── PERFORMANCE (P&L) ── -->
         <div id="plBanner" style="display:none;margin-top:16px;padding:14px 16px;background:var(--bg2);border:1px solid var(--border);border-radius:10px">
           <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
-            <span style="font-size:13px;color:var(--muted)">Portafoglio con quantità salvate — aggiorna i prezzi per vedere la performance attuale</span>
-            <button id="valuateBtn" class="btn btn-primary btn-sm" type="button">Valorizza portafoglio</button>
+            <span style="font-size:13px;color:var(--muted)" data-i18n="dash.pl.banner">Portafoglio con quantità salvate — aggiorna i prezzi per vedere la performance attuale</span>
+            <button id="valuateBtn" class="btn btn-primary btn-sm" type="button" data-i18n="dash.pl.valuate">Valorizza portafoglio</button>
           </div>
           <div id="plResult" style="display:none;margin-top:14px"></div>
         </div>
@@ -290,8 +298,8 @@
         <!-- ── PAC – Piano di Accumulo ── -->
         <div id="pacSection" style="display:none;margin-top:16px;border:1px solid var(--border);border-radius:10px;overflow:hidden">
           <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--bg2);border-bottom:1px solid var(--border)">
-            <h3 style="margin:0;font-size:15px">📅 Piano di Accumulo (PAC)</h3>
-            <button id="addPacBtn" class="btn btn-ghost btn-sm" type="button">+ Aggiungi rata</button>
+            <h3 style="margin:0;font-size:15px" data-i18n="dash.pac.title">📅 Piano di Accumulo (PAC)</h3>
+            <button id="addPacBtn" class="btn btn-ghost btn-sm" type="button" data-i18n="dash.pac.add">+ Aggiungi rata</button>
           </div>
           <div id="pacList" style="padding:12px 16px"></div>
 
@@ -300,37 +308,37 @@
             <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end">
               <div style="display:flex;flex-direction:column;gap:4px">
                 <label style="font-size:11px;color:var(--muted)">Ticker / ISIN</label>
-                <input id="pacTicker" type="text" placeholder="es. SWRD o IE00B3RBWM25"
+                <input id="pacTicker" type="text" placeholder="es. SWRD o IE00B3RBWM25" data-i18n-attr="placeholder:dash.pac.tickerPh"
                   style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:13px;width:180px;font-family:inherit" />
               </div>
               <div style="display:flex;flex-direction:column;gap:4px">
-                <label style="font-size:11px;color:var(--muted)">Nome (opz.)</label>
-                <input id="pacName" type="text" placeholder="Nome strumento"
+                <label style="font-size:11px;color:var(--muted)" data-i18n="dash.pac.name">Nome (opz.)</label>
+                <input id="pacName" type="text" placeholder="Nome strumento" data-i18n-attr="placeholder:dash.pac.namePh"
                   style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:13px;width:160px;font-family:inherit" />
               </div>
               <div style="display:flex;flex-direction:column;gap:4px">
-                <label style="font-size:11px;color:var(--muted)">Importo per rata (EUR)</label>
+                <label style="font-size:11px;color:var(--muted)" data-i18n="dash.pac.amount">Importo per rata (EUR)</label>
                 <input id="pacAmount" type="number" min="1" step="10" value="100"
                   style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:13px;width:120px;font-family:inherit" />
               </div>
               <div style="display:flex;flex-direction:column;gap:4px">
-                <label style="font-size:11px;color:var(--muted)">Frequenza</label>
+                <label style="font-size:11px;color:var(--muted)" data-i18n="dash.pac.freq">Frequenza</label>
                 <select id="pacFrequency"
                   style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:13px;font-family:inherit">
-                  <option value="monthly">Mensile</option>
-                  <option value="biweekly">Bisettimanale</option>
-                  <option value="weekly">Settimanale</option>
-                  <option value="quarterly">Trimestrale</option>
+                  <option value="monthly" data-i18n="dash.pac.freq.monthly">Mensile</option>
+                  <option value="biweekly" data-i18n="dash.pac.freq.biweekly">Bisettimanale</option>
+                  <option value="weekly" data-i18n="dash.pac.freq.weekly">Settimanale</option>
+                  <option value="quarterly" data-i18n="dash.pac.freq.quarterly">Trimestrale</option>
                 </select>
               </div>
               <div style="display:flex;flex-direction:column;gap:4px">
-                <label style="font-size:11px;color:var(--muted)">Data inizio</label>
+                <label style="font-size:11px;color:var(--muted)" data-i18n="dash.pac.start">Data inizio</label>
                 <input id="pacStartDate" type="date"
                   style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:13px;font-family:inherit" />
               </div>
               <div style="display:flex;gap:6px">
-                <button id="pacSaveBtn" class="btn btn-primary btn-sm" type="button">Salva rata</button>
-                <button id="pacCancelBtn" class="btn btn-ghost btn-sm" type="button">Annulla</button>
+                <button id="pacSaveBtn" class="btn btn-primary btn-sm" type="button" data-i18n="dash.pac.save">Salva rata</button>
+                <button id="pacCancelBtn" class="btn btn-ghost btn-sm" type="button" data-i18n="dash.pac.cancel">Annulla</button>
               </div>
             </div>
             <p id="pacFormError" style="color:var(--red);font-size:12px;margin:6px 0 0;display:none"></p>
@@ -340,7 +348,7 @@
 
       <!-- ── AD between form and dashboard ── -->
       <div class="promo-slot promo-inline" data-promo-slot="mid-content">
-        <span class="promo-label">Pubblicità</span>
+        <span class="promo-label" data-i18n="dash.ad.label">Pubblicità</span>
         <div class="promo-placeholder">336 × 280 — Rectangle</div>
       </div>
 
@@ -351,26 +359,26 @@
         <div class="dash-grid-3">
 
           <div class="card">
-            <div class="card-header"><h3>Asset Allocation</h3></div>
+            <div class="card-header"><h3 data-i18n="dash.d.alloc">Asset Allocation</h3></div>
             <div class="donut-wrap">
               <canvas id="allocationChart"></canvas>
-              <div class="donut-center" id="donutCenter">100%<br/><small>investito</small></div>
+              <div class="donut-center" id="donutCenter" data-i18n-html="dash.d.invested">100%<br/><small>investito</small></div>
             </div>
             <div id="allocationLegend" class="chart-legend"></div>
           </div>
 
           <div class="card">
-            <div class="card-header"><h3>Allocazione per Categoria</h3></div>
+            <div class="card-header"><h3 data-i18n="dash.d.byCat">Allocazione per Categoria</h3></div>
             <div id="categoryBars" class="category-bars"></div>
           </div>
 
           <div class="card">
-            <div class="card-header"><h3>Esposizione Geografica <small>(stima)</small></h3></div>
+            <div class="card-header"><h3 data-i18n-html="dash.d.geo">Esposizione Geografica <small>(stima)</small></h3></div>
             <div id="geoMap" class="geo-map-wrap">
               <canvas id="geoChart"></canvas>
             </div>
             <div id="geoLegend" class="chart-legend"></div>
-            <p class="geo-note">Stima basata sulle partecipazioni sottostanti</p>
+            <p class="geo-note" data-i18n="dash.d.geoNote">Stima basata sulle partecipazioni sottostanti</p>
           </div>
         </div>
 
@@ -379,70 +387,70 @@
 
           <div class="card">
             <div class="card-header">
-              <h3>Holdings</h3>
-              <span class="header-right muted">Allocazione</span>
+              <h3 data-i18n="dash.d.holdings">Holdings</h3>
+              <span class="header-right muted" data-i18n="dash.d.allocation">Allocazione</span>
             </div>
             <div id="holdingsList" class="holdings-list"></div>
           </div>
 
           <div>
             <div class="card">
-              <div class="card-header"><h3>Esposizione per Classe</h3></div>
+              <div class="card-header"><h3 data-i18n="dash.d.byClass">Esposizione per Classe</h3></div>
               <div id="classExposure" class="class-exposure-bar"></div>
             </div>
 
             <div class="card" style="margin-top:16px">
               <div class="card-header">
-                <h3>Rischio Valutario <small>(valuta di quotazione)</small></h3>
+                <h3 data-i18n-html="dash.d.curRisk">Rischio Valutario <small>(valuta di quotazione)</small></h3>
               </div>
               <div id="currencyRisk" class="category-bars"></div>
-              <p class="geo-note" style="margin-top:8px">Basato sulla valuta di negoziazione di ciascuno strumento</p>
+              <p class="geo-note" style="margin-top:8px" data-i18n="dash.d.curRiskNote">Basato sulla valuta di negoziazione di ciascuno strumento</p>
             </div>
 
             <div class="card" style="margin-top:16px">
               <div class="card-header">
-                <h3>Esposizione Valutaria <small>(valuta sottostanti)</small></h3>
+                <h3 data-i18n-html="dash.d.curUnd">Esposizione Valutaria <small>(valuta sottostanti)</small></h3>
               </div>
               <div id="underlyingCurrencyRisk" class="category-bars"></div>
-              <p class="geo-note" style="margin-top:8px">Per ETF calcolata dalla geografia dei sottostanti; per azioni/obbligazioni usa la valuta di quotazione</p>
+              <p class="geo-note" style="margin-top:8px" data-i18n="dash.d.curUndNote">Per ETF calcolata dalla geografia dei sottostanti; per azioni/obbligazioni usa la valuta di quotazione</p>
             </div>
 
             <!-- ── AD inside right column ── -->
             <div class="promo-slot promo-square" style="margin-top:16px" data-promo-slot="mid-right">
-              <span class="promo-label">Pubblicità</span>
+              <span class="promo-label" data-i18n="dash.ad.label">Pubblicità</span>
               <div class="promo-placeholder">300 × 250 — Rectangle</div>
             </div>
 
             <div class="card" style="margin-top:16px">
               <div class="card-header" style="display:flex;align-items:center;justify-content:space-between">
-                <h3>Metriche di Portafoglio <small>(stima)</small></h3>
+                <h3 data-i18n-html="dash.d.metrics">Metriche di Portafoglio <small>(stima)</small></h3>
                 <button id="glossaryToggle" onclick="document.getElementById('glossaryPanel').classList.toggle('hidden')"
                   style="background:none;border:1px solid var(--border);border-radius:6px;color:var(--muted);
-                         font-size:12px;padding:3px 8px;cursor:pointer;font-family:inherit">ℹ Glossary</button>
+                         font-size:12px;padding:3px 8px;cursor:pointer;font-family:inherit" data-i18n="dash.gl.toggle">ℹ Glossario</button>
               </div>
               <div id="metriche" class="metriche-grid"></div>
               <div id="glossaryPanel" class="hidden" style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px;font-size:12px;color:var(--muted);display:grid;gap:6px">
-                <div><strong style="color:var(--text)">Expected Return (annualized)</strong> — Estimated annual gain based on the weighted average of each asset class's historical mean return (Equities 7–11%, Bonds 3–5%, Crypto 15–30%, Cash 1.5–2%). A range is shown to reflect uncertainty.</div>
-                <div><strong style="color:var(--text)">Expected Volatility (annualized)</strong> — Estimated annual standard deviation of portfolio returns, reflecting how much the value may fluctuate. Higher equity and crypto weights increase this figure.</div>
-                <div><strong style="color:var(--text)">Sharpe Ratio</strong> — Return per unit of risk (Expected Return ÷ Volatility). A ratio above 1.0 is generally considered good; above 2.0 is excellent. Range reflects the low/high return and volatility estimates.</div>
-                <div><strong style="color:var(--text)">Weighted Avg. TER</strong> — Total Expense Ratio of the ETF portion of the portfolio, weighted by allocation. This is the annual cost drag from fund management fees. Only shown when ETF holdings have TER data available.</div>
-                <div><strong style="color:var(--text)">Risk Profile</strong> — Qualitative classification based on the equity + crypto weight: Conservative (&lt;25%), Moderate (25–50%), Moderately Aggressive (50–75%), Aggressive (&gt;75%).</div>
-                <div style="color:var(--muted);font-size:11px;margin-top:4px">All figures are estimates for indicative purposes only and do not constitute financial advice.</div>
+                <div data-i18n-html="dash.gl.return"><strong style="color:var(--text)">Rendimento atteso (annuo)</strong> — Guadagno annuo stimato come media ponderata del rendimento storico medio di ogni classe di attivo (azioni 7–11%, obbligazioni 3–5%, cripto 15–30%, liquidità 1,5–2%). Si mostra un intervallo per riflettere l'incertezza.</div>
+                <div data-i18n-html="dash.gl.vol"><strong style="color:var(--text)">Volatilità attesa (annua)</strong> — Deviazione standard annua stimata dei rendimenti del portafoglio: indica quanto il valore può oscillare. Pesi maggiori di azioni e cripto la fanno salire.</div>
+                <div data-i18n-html="dash.gl.sharpe"><strong style="color:var(--text)">Sharpe Ratio</strong> — Rendimento per unità di rischio (rendimento atteso ÷ volatilità). Sopra 1,0 è in genere considerato buono, sopra 2,0 eccellente. L'intervallo riflette le stime minime/massime di rendimento e volatilità.</div>
+                <div data-i18n-html="dash.gl.ter"><strong style="color:var(--text)">TER medio ponderato</strong> — Total Expense Ratio della parte in ETF, ponderato per allocazione: è il costo annuo delle commissioni di gestione dei fondi. Compare solo se per gli ETF il TER è disponibile.</div>
+                <div data-i18n-html="dash.gl.profile"><strong style="color:var(--text)">Profilo di rischio</strong> — Classificazione qualitativa basata sul peso di azioni + cripto: Conservativo (&lt;25%), Moderato (25–50%), Moderatamente Aggressivo (50–75%), Aggressivo (&gt;75%).</div>
+                <div style="color:var(--muted);font-size:11px;margin-top:4px" data-i18n="dash.gl.note">Tutti i valori sono stime a scopo puramente indicativo e non costituiscono consulenza finanziaria.</div>
               </div>
             </div>
 
             <!-- Performance chart -->
             <div id="perfCard" class="card hidden" style="margin-top:16px">
               <div class="card-header" style="display:flex;align-items:center;justify-content:space-between">
-                <h3>Andamento Portafoglio</h3>
+                <h3 data-i18n="dash.perf.title">Andamento Portafoglio</h3>
                 <div id="perfReturn" style="font-size:18px;font-weight:700"></div>
               </div>
               <div style="display:flex;gap:6px;margin-bottom:8px">
-                <button class="period-btn active" data-days="365">1A</button>
-                <button class="period-btn" data-days="180">6M</button>
-                <button class="period-btn" data-days="30">1M</button>
-                <button class="period-btn" data-days="7">1S</button>
-                <button class="period-btn" data-days="1">1G</button>
+                <button class="period-btn active" data-days="365" data-i18n="dash.perf.1y">1A</button>
+                <button class="period-btn" data-days="180" data-i18n="dash.perf.6m">6M</button>
+                <button class="period-btn" data-days="30" data-i18n="dash.perf.1m">1M</button>
+                <button class="period-btn" data-days="7" data-i18n="dash.perf.1w">1S</button>
+                <button class="period-btn" data-days="1" data-i18n="dash.perf.1d">1G</button>
               </div>
               <div style="position:relative;height:260px;margin-top:8px">
                 <canvas id="perfChart"></canvas>
@@ -457,7 +465,7 @@
 
       <!-- ── RIEPILOGO FINALE ── -->
       <div id="portfolioSummaryCard" class="card hidden" style="margin-top:16px">
-        <div class="card-header"><h3>📋 Riepilogo Portafoglio</h3></div>
+        <div class="card-header"><h3 data-i18n="dash.sum.title">📋 Riepilogo Portafoglio</h3></div>
         <div id="portfolioSummary"></div>
       </div>
 
@@ -465,71 +473,71 @@
       <section class="card" id="superinvestitori" style="margin-top:16px">
         <div class="card-header">
           <div>
-            <h2>🧠 Superinvestitori</h2>
-            <p>Portafogli dei grandi investitori value (Buffett, Ackman, Pabrai…) dai filing 13F trimestrali SEC · fonte <a href="https://www.dataroma.com/m/home.php" target="_blank" rel="noopener" style="color:var(--accent2)">Dataroma</a></p>
+            <h2 data-i18n="dash.si.title">🧠 Superinvestitori</h2>
+            <p data-i18n-html="dash.si.sub">Portafogli dei grandi investitori value (Buffett, Ackman, Pabrai…) dai filing 13F trimestrali SEC · fonte <a href="https://www.dataroma.com/m/home.php" target="_blank" rel="noopener" style="color:var(--accent2)">Dataroma</a></p>
           </div>
         </div>
         <div class="si-tabs" role="tablist">
-          <button class="si-tab active" data-si-tab="consensus" type="button">Più posseduti</button>
-          <button class="si-tab" data-si-tab="managers" type="button">Portafogli</button>
-          <button class="si-tab" data-si-tab="overlap" type="button">I tuoi titoli</button>
+          <button class="si-tab active" data-si-tab="consensus" type="button" data-i18n="dash.si.tab.consensus">Più posseduti</button>
+          <button class="si-tab" data-si-tab="managers" type="button" data-i18n="dash.si.tab.managers">Portafogli</button>
+          <button class="si-tab" data-si-tab="overlap" type="button" data-i18n="dash.si.tab.overlap">I tuoi titoli</button>
         </div>
         <div class="si-pane" id="siConsensus"></div>
         <div class="si-pane hidden" id="siManagers">
-          <select id="siManagerSelect" class="si-select"><option value="">Caricamento gestori…</option></select>
+          <select id="siManagerSelect" class="si-select"><option value="" data-i18n="dash.si.loadingManagers">Caricamento gestori…</option></select>
           <div id="siManagerPortfolio"></div>
         </div>
         <div class="si-pane hidden" id="siOverlap"></div>
-        <p class="si-note">Dati 13F: posizioni long in azioni USA, pubblicate fino a 45 giorni dopo la fine del trimestre. Non sono raccomandazioni d'investimento.</p>
+        <p class="si-note" data-i18n="dash.si.note">Dati 13F: posizioni long in azioni USA, pubblicate fino a 45 giorni dopo la fine del trimestre. Non sono raccomandazioni d'investimento.</p>
       </section>
 
       <!-- ══════════ COME FUNZIONA ══════════ -->
       <section class="card info-section" id="come-funziona">
-        <div class="card-header"><h2>Come funziona</h2></div>
+        <div class="card-header"><h2 data-i18n="dash.how.title">Come funziona</h2></div>
         <div class="steps-grid">
           <div class="step">
             <div class="step-num">1</div>
-            <h4>Cerca il tuo strumento</h4>
-            <p>Inserisci un ISIN internazionale o un Ticker (es. MSFT, ETH-USD). I dati vengono recuperati in tempo reale.</p>
+            <h4 data-i18n="dash.how.s1.t">Cerca il tuo strumento</h4>
+            <p data-i18n="dash.how.s1.p">Inserisci un ISIN internazionale o un Ticker (es. MSFT, ETH-USD). I dati vengono recuperati in tempo reale.</p>
           </div>
           <div class="step">
             <div class="step-num">2</div>
-            <h4>Imposta l'allocazione</h4>
-            <p>Per ogni asset specifica la percentuale del portafoglio. Puoi aggiungere anche la quota di liquidità.</p>
+            <h4 data-i18n="dash.how.s2.t">Imposta l'allocazione</h4>
+            <p data-i18n="dash.how.s2.p">Per ogni asset specifica la percentuale del portafoglio. Puoi aggiungere anche la quota di liquidità.</p>
           </div>
           <div class="step">
             <div class="step-num">3</div>
-            <h4>Analizza il dashboard</h4>
-            <p>Ottieni asset allocation, esposizione geografica ponderata, metriche di rischio e profilo del portafoglio.</p>
+            <h4 data-i18n="dash.how.s3.t">Analizza il dashboard</h4>
+            <p data-i18n="dash.how.s3.p">Ottieni asset allocation, esposizione geografica ponderata, metriche di rischio e profilo del portafoglio.</p>
           </div>
         </div>
       </section>
 
       <!-- ══════════ FAQ ══════════ -->
       <section class="card info-section" id="faq">
-        <div class="card-header"><h2>FAQ</h2></div>
+        <div class="card-header"><h2 data-i18n="dash.faq.title">FAQ</h2></div>
         <div class="faq-list">
           <details class="faq-item">
-            <summary>Che dati vengono usati?</summary>
-            <p>I prezzi e i metadati provengono da Yahoo Finance via yfinance. La risoluzione degli ISIN usa OpenFIGI (API gratuita). L'esposizione geografica è una stima euristica basata sulla categoria dello strumento.</p>
+            <summary data-i18n="dash.faq.q1">Che dati vengono usati?</summary>
+            <p data-i18n="dash.faq.a1">I prezzi e i metadati provengono da Yahoo Finance via yfinance. La risoluzione degli ISIN usa OpenFIGI (API gratuita). L'esposizione geografica è una stima euristica basata sulla categoria dello strumento.</p>
           </details>
           <details class="faq-item">
-            <summary>Supportate ETF europei con ISIN IE/LU?</summary>
-            <p>Sì. Il backend risolve l'ISIN tramite OpenFIGI per trovare il ticker corrispondente (es. SWRD.L per Londra) e poi recupera i dati da Yahoo Finance.</p>
+            <summary data-i18n="dash.faq.q2">Supportate ETF europei con ISIN IE/LU?</summary>
+            <p data-i18n="dash.faq.a2">Sì. Il backend risolve l'ISIN tramite OpenFIGI per trovare il ticker corrispondente (es. SWRD.L per Londra) e poi recupera i dati da Yahoo Finance.</p>
           </details>
           <details class="faq-item">
-            <summary>Le metriche sono accurate?</summary>
-            <p>Rendimento atteso, volatilità e Sharpe Ratio sono stime euristiche basate sulla composizione del portafoglio. Non costituiscono consulenza finanziaria.</p>
+            <summary data-i18n="dash.faq.q3">Le metriche sono accurate?</summary>
+            <p data-i18n="dash.faq.a3">Rendimento atteso, volatilità e Sharpe Ratio sono stime euristiche basate sulla composizione del portafoglio. Non costituiscono consulenza finanziaria.</p>
           </details>
           <details class="faq-item">
-            <summary>I miei dati vengono salvati?</summary>
-            <p>No. Tutto viene elaborato in sessione, nessun dato personale viene memorizzato sul server.</p>
+            <summary data-i18n="dash.faq.q4">I miei dati vengono salvati?</summary>
+            <p data-i18n="dash.faq.a4">No. Tutto viene elaborato in sessione, nessun dato personale viene memorizzato sul server.</p>
           </details>
         </div>
       </section>
 
       <!-- ══════════ DISCLAIMER ══════════ -->
-      <div class="disclaimer">
+      <div class="disclaimer" data-i18n-html="dash.disclaimer">
         ⚠️ <strong>Disclaimer:</strong> Le informazioni presenti su questo sito hanno scopo puramente informativo e non costituiscono consulenza finanziaria, legale o fiscale. Investire comporta rischi, inclusa la possibile perdita del capitale.
       </div>
 
@@ -541,24 +549,24 @@
       <!-- Sticky ad unit (300×600 half page) -->
       <div class="sidebar-sticky">
         <div class="promo-slot promo-sidebar" data-promo-slot="sidebar-halfpage">
-          <span class="promo-label">Pubblicità</span>
+          <span class="promo-label" data-i18n="dash.ad.label">Pubblicità</span>
           <div class="promo-placeholder">300 × 600<br/>Half Page</div>
         </div>
 
         <!-- Mini widget: glossario -->
         <div class="widget" style="margin-top:20px">
-          <h4 class="widget-title">📖 Glossario rapido</h4>
+          <h4 class="widget-title" data-i18n="dash.gq.title">📖 Glossario rapido</h4>
           <dl class="glossary">
-            <dt>ISIN</dt><dd>Codice internazionale di identificazione titoli (12 caratteri)</dd>
-            <dt>ETF</dt><dd>Exchange Traded Fund — fondo indicizzato quotato in borsa</dd>
-            <dt>Sharpe Ratio</dt><dd>Rendimento aggiustato per il rischio. Più è alto, meglio</dd>
-            <dt>Volatilità</dt><dd>Misura le oscillazioni di prezzo annuali (deviazione standard)</dd>
+            <dt>ISIN</dt><dd data-i18n="dash.gq.isin">Codice internazionale di identificazione titoli (12 caratteri)</dd>
+            <dt>ETF</dt><dd data-i18n="dash.gq.etf">Exchange Traded Fund — fondo indicizzato quotato in borsa</dd>
+            <dt>Sharpe Ratio</dt><dd data-i18n="dash.gq.sharpe">Rendimento aggiustato per il rischio. Più è alto, meglio</dd>
+            <dt data-i18n="dash.gq.volT">Volatilità</dt><dd data-i18n="dash.gq.vol">Misura le oscillazioni di prezzo annuali (deviazione standard)</dd>
           </dl>
         </div>
 
         <!-- Second ad unit (300×250 rectangle) -->
         <div class="promo-slot promo-square" style="margin-top:20px" data-promo-slot="sidebar-rectangle">
-          <span class="promo-label">Pubblicità</span>
+          <span class="promo-label" data-i18n="dash.ad.label">Pubblicità</span>
           <div class="promo-placeholder">300 × 250<br/>Rectangle</div>
         </div>
       </div>
@@ -570,7 +578,7 @@
   <footer class="footer">
     <!-- Footer ad leaderboard -->
     <div class="promo-slot promo-leaderboard" style="margin-bottom:24px" data-promo-slot="footer-leaderboard">
-      <span class="promo-label">Pubblicità</span>
+      <span class="promo-label" data-i18n="dash.ad.label">Pubblicità</span>
       <div class="promo-placeholder">728 × 90 — Footer Leaderboard</div>
     </div>
     <div class="footer-inner">
@@ -579,9 +587,9 @@
         <a href="#">Privacy Policy</a>
         <a href="#">Cookie Policy</a>
         <a href="#">Disclaimer</a>
-        <a href="#">Contatti</a>
+        <a href="#" data-i18n="dash.foot.contact">Contatti</a>
       </div>
-      <p class="footer-copy">© 2025 PortfolioLab. Solo a scopo informativo. Non è consulenza finanziaria.</p>
+      <p class="footer-copy" data-i18n="dash.foot.copy">© 2025 PortfolioLab. Solo a scopo informativo. Non è consulenza finanziaria.</p>
     </div>
   </footer>
 
@@ -589,17 +597,17 @@
   <div id="extractModal" class="modal-overlay hidden">
     <div class="modal-box">
       <div class="modal-header">
-        <h3>📊 Strumenti estratti dal documento</h3>
-        <button class="btn-rm" id="modalCloseBtn" type="button" style="font-size:20px">×</button>
+        <h3 data-i18n="dash.ex.title">📊 Strumenti estratti dal documento</h3>
+        <button class="btn-rm" id="modalCloseBtn" type="button" style="font-size:20px" aria-label="Chiudi" data-i18n-attr="aria-label:dash.close">×</button>
       </div>
-      <p style="color:var(--muted);font-size:13px;margin:0 0 14px">
+      <p style="color:var(--muted);font-size:13px;margin:0 0 14px" data-i18n="dash.ex.sub">
         Seleziona gli strumenti da importare nel portafoglio
       </p>
       <div id="extractedItemsList"></div>
       <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap;align-items:center">
-        <button class="btn btn-ghost btn-sm" id="selectAllExtracted" type="button">Seleziona tutti</button>
-        <button class="btn btn-ghost btn-sm" id="deselectAllExtracted" type="button">Deseleziona tutti</button>
-        <button class="btn btn-primary" id="importSelectedBtn" type="button">Importa selezionati</button>
+        <button class="btn btn-ghost btn-sm" id="selectAllExtracted" type="button" data-i18n="dash.ex.selAll">Seleziona tutti</button>
+        <button class="btn btn-ghost btn-sm" id="deselectAllExtracted" type="button" data-i18n="dash.ex.deselAll">Deseleziona tutti</button>
+        <button class="btn btn-primary" id="importSelectedBtn" type="button" data-i18n="dash.ex.import">Importa selezionati</button>
         <span id="importStatus" style="color:var(--muted);font-size:13px"></span>
       </div>
     </div>
@@ -609,8 +617,8 @@
   <div id="portfolioListModal" class="modal-overlay hidden">
     <div class="modal-box" style="max-width:520px">
       <div class="modal-header">
-        <h3>📂 Portafogli salvati</h3>
-        <button id="portfolioListClose" style="background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer;line-height:1">×</button>
+        <h3 data-i18n="dash.list.title">📂 Portafogli salvati</h3>
+        <button id="portfolioListClose" style="background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer;line-height:1" aria-label="Chiudi" data-i18n-attr="aria-label:dash.close">×</button>
       </div>
       <div id="portfolioListItems" style="margin-top:12px"></div>
     </div>

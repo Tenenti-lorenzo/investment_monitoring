@@ -43,7 +43,7 @@ window.Session = (function () {
     const res = await fetch(url, { ...opts, headers: { ...(opts.headers || {}), Authorization: `Bearer ${token()}` } });
     if (res.status === 401) {
       expire();
-      throw new Error('Sessione scaduta');
+      throw new Error(window.I18n ? I18n.t('session.expired') : 'Sessione scaduta');
     }
     const fresh = res.headers.get(REFRESH_HEADER);
     if (fresh) try { localStorage.setItem(TOKEN_KEY, fresh); } catch { /* ignore */ }

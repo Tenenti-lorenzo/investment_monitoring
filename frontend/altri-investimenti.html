@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="it">
+<html lang="it" data-i18n-title="wl.title">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>PortfolioLab – Altri investimenti</title>
-  <meta name="description" content="Polizze vita, fondi pensione, casa e mutuo, private markets e altri beni fuori dal portafoglio di mercato." />
+  <meta name="description" data-i18n-attr="content:wl.meta" content="Polizze vita, fondi pensione, casa e mutuo, private markets e altri beni fuori dal portafoglio di mercato." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" integrity="sha384-e6nUZLBkQ86NJ6TVVKAeSaK8jWa3NhkYWZFomE39AvDbQWeie9PlQqM3pmYW5d1g" crossorigin="anonymous"></script>
@@ -12,6 +12,13 @@
   <script src="/static/js/theme.js"></script>
   <script src="/static/js/i18n.js"></script>
   <script src="/static/i18n/common.js"></script>
+  <script src="/static/i18n/session.js"></script>
+  <script src="/static/i18n/wealth.js"></script>
+  <script src="/static/i18n/wealth.en.js"></script>
+  <script src="/static/i18n/wealth.fr.js"></script>
+  <script src="/static/i18n/wealth.de.js"></script>
+  <script src="/static/i18n/wealth.es.js"></script>
+  <script src="/static/i18n/wealth.ja.js"></script>
   <link rel="stylesheet" href="/static/css/analisi.css" />
   <link rel="stylesheet" href="/static/css/patrimonio.css" />
   <script src="/static/js/session.js"></script>
@@ -36,26 +43,26 @@
       </div>
       <div class="nav-cta" style="display:flex;align-items:center;gap:12px">
         <span id="navUsername" style="font-size:13px;color:var(--muted)"></span>
-        <button class="btn btn-ghost btn-sm" type="button" onclick="doLogout()" data-i18n="nav.logout">
+        <button class="btn btn-ghost btn-sm" type="button" onclick="doLogout()" data-i18n="nav.logout">Esci</button>
       </div>
     </div>
   </nav>
 
   <main class="container an-main">
     <header class="an-title">
-      <h1>Altri investimenti</h1>
-      <p>Tutto quello che non passa dal portafoglio di mercato: polizze vita, fondo pensione, casa (con
+      <h1 data-i18n="wl.h1">Altri investimenti</h1>
+      <p data-i18n-html="wl.lead">Tutto quello che non passa dal portafoglio di mercato: polizze vita, fondo pensione, casa (con
         l'eventuale mutuo), private markets e qualsiasi altro bene. Inserisci i valori attuali: confluiscono
         nel <a href="/patrimonio">patrimonio complessivo</a>.</p>
     </header>
 
-    <nav class="an-toc" id="wlToc" aria-label="Sezioni"></nav>
+    <nav class="an-toc" id="wlToc" data-i18n-attr="aria-label:wl.tocAria" aria-label="Sezioni"></nav>
     <div id="wlKpis" class="kpi-row k4"></div>
     <span id="wlStatus" class="an-status">Caricamento…</span>
     <div id="wlSections" class="an-main" style="padding:0"></div>
 
     <section class="card">
-      <div class="an-explain" style="margin-top:0">
+      <div class="an-explain" style="margin-top:0" data-i18n-html="wl.where">
         <strong>Dove lo metto?</strong> Un <strong>ETF o un titolo dentro un conto titoli</strong> va nel portafoglio
         della dashboard, non qui. Una <strong>polizza unit linked (Ramo III)</strong> o multiramo va in "Polizze vita"
         anche se investe in fondi: conta il valore di riscatto. Il <strong>TFR lasciato in azienda</strong>, i conti
@@ -64,7 +71,7 @@
       </div>
     </section>
 
-    <p class="an-disclaimer">Valori inseriti a mano, non verificati. Strumento informativo, non costituisce
+    <p class="an-disclaimer" data-i18n="wl.disclaimer">Valori inseriti a mano, non verificati. Strumento informativo, non costituisce
       consulenza finanziaria.</p>
   </main>
 
@@ -75,31 +82,31 @@
       <form id="wlForm" class="wl-form" novalidate>
         <input type="hidden" name="asset_id" />
         <input type="hidden" name="kind" />
-        <label class="an-field full">Nome *
-          <input name="name" required maxlength="120" placeholder="es. Polizza Generali Vita" /></label>
+        <label class="an-field full"><span data-i18n="wl.f.name">Nome *</span>
+          <input name="name" required maxlength="120" data-i18n-attr="placeholder:wl.f.namePh" placeholder="es. Polizza Generali Vita" /></label>
         <label class="an-field"><span data-label="provider">Compagnia / gestore</span>
           <input name="provider" maxlength="120" /></label>
-        <label class="an-field" data-kinds="life_insurance">Tipo di polizza
+        <label class="an-field" data-kinds="life_insurance"><span data-i18n="wl.f.branch">Tipo di polizza</span>
           <select name="insurance_branch">
             <option value="">—</option>
-            <option value="ramo_i">Ramo I – gestione separata</option>
-            <option value="ramo_iii">Ramo III – unit / index linked</option>
-            <option value="multiramo">Multiramo</option>
-            <option value="tcm">TCM – temporanea caso morte</option>
-            <option value="other">Altro</option>
+            <option value="ramo_i" data-i18n="wl.f.opt.ramo_i">Ramo I – gestione separata</option>
+            <option value="ramo_iii" data-i18n="wl.f.opt.ramo_iii">Ramo III – unit / index linked</option>
+            <option value="multiramo" data-i18n="wl.f.opt.multiramo">Multiramo</option>
+            <option value="tcm" data-i18n="wl.f.opt.tcm">TCM – temporanea caso morte</option>
+            <option value="other" data-i18n="wl.f.opt.other">Altro</option>
           </select></label>
-        <label class="an-field" data-kinds="life_insurance" data-branches="multiramo">Quota in Ramo I (%)
+        <label class="an-field" data-kinds="life_insurance" data-branches="multiramo"><span data-i18n="wl.f.ramoShare">Quota in Ramo I (%)</span>
           <input name="ramo_i_share_pct" type="number" min="0" max="100" step="5" placeholder="50" /></label>
-        <label class="an-field" data-kinds="pension_fund">Comparto (nome)
-          <input name="pension_line" maxlength="120" placeholder="es. Crescita" /></label>
-        <label class="an-field" data-kinds="pension_fund">Profilo di investimento
+        <label class="an-field" data-kinds="pension_fund"><span data-i18n="wl.f.line">Comparto (nome)</span>
+          <input name="pension_line" maxlength="120" data-i18n-attr="placeholder:wl.f.linePh" placeholder="es. Crescita" /></label>
+        <label class="an-field" data-kinds="pension_fund"><span data-i18n="wl.f.profile">Profilo di investimento</span>
           <select name="pension_profile">
             <option value="">—</option>
-            <option value="conservative">Conservativo / garantito</option>
-            <option value="balanced">Bilanciato</option>
-            <option value="dynamic">Dinamico / azionario</option>
+            <option value="conservative" data-i18n="wl.f.opt.conservative">Conservativo / garantito</option>
+            <option value="balanced" data-i18n="wl.f.opt.balanced">Bilanciato</option>
+            <option value="dynamic" data-i18n="wl.f.opt.dynamic">Dinamico / azionario</option>
           </select></label>
-        <label class="an-field" data-kinds="real_estate">Quota di proprietà (%)
+        <label class="an-field" data-kinds="real_estate"><span data-i18n="wl.f.ownership">Quota di proprietà (%)</span>
           <input name="ownership_pct" type="number" min="1" max="100" step="1" value="100" /></label>
         <label class="an-field"><span data-label="current_value">Valore attuale (€) *</span>
           <input name="current_value" type="number" min="0" step="100" required /></label>
@@ -107,70 +114,70 @@
           <input name="invested" type="number" min="0" step="100" /></label>
         <label class="an-field" data-kinds="life_insurance pension_fund private"><span data-label="annual_contribution">Versamento annuo (€)</span>
           <input name="annual_contribution" type="number" min="0" step="50" /></label>
-        <label class="an-field" data-kinds="life_insurance">Capitale assicurato caso morte (€)
+        <label class="an-field" data-kinds="life_insurance"><span data-i18n="wl.f.insured">Capitale assicurato caso morte (€)</span>
           <input name="insured_capital" type="number" min="0" step="1000" /></label>
-        <label class="an-field" data-kinds="life_insurance">Scadenza
+        <label class="an-field" data-kinds="life_insurance"><span data-i18n="wl.f.maturity">Scadenza</span>
           <input name="maturity_date" type="date" /></label>
-        <label class="an-field" data-kinds="life_insurance">Rendimento annuo atteso (%)
-          <input name="expected_return_pct" type="number" min="-5" max="15" step="0.1" placeholder="vuoto = stima per tipo" /></label>
-        <p class="wl-hint" data-kinds="life_insurance">TCM: nessun valore di riscatto, lascia 0 e metti premio annuo e
+        <label class="an-field" data-kinds="life_insurance"><span data-i18n="wl.f.expReturn">Rendimento annuo atteso (%)</span>
+          <input name="expected_return_pct" type="number" min="-5" max="15" step="0.1" data-i18n-attr="placeholder:wl.f.expReturnPh" placeholder="vuoto = stima per tipo" /></label>
+        <p class="wl-hint" data-kinds="life_insurance" data-i18n="wl.f.hintLife">TCM: nessun valore di riscatto, lascia 0 e metti premio annuo e
           capitale assicurato. Rendimento vuoto: Ramo I 2,5%, Ramo III 4,5%, multiramo in proporzione.</p>
 
         <fieldset data-kinds="pension_fund">
-          <legend>Simulazione alla pensione</legend>
-          <label class="an-field">Anno di nascita
-            <input name="birth_year" type="number" min="1930" max="2015" step="1" placeholder="es. 1990" /></label>
-          <label class="an-field">Età di pensionamento
+          <legend data-i18n="wl.f.pensionSim">Simulazione alla pensione</legend>
+          <label class="an-field"><span data-i18n="wl.f.birthYear">Anno di nascita</span>
+            <input name="birth_year" type="number" min="1930" max="2015" step="1" data-i18n-attr="placeholder:wl.f.birthYearPh" placeholder="es. 1990" /></label>
+          <label class="an-field"><span data-i18n="wl.f.retAge">Età di pensionamento</span>
             <input name="retirement_age" type="number" min="50" max="75" step="1" value="67" /></label>
-          <label class="an-field full">Tasse sulla prestazione (%)
-            <input name="tax_pct" type="number" min="0" max="50" step="0.1" placeholder="es. 15" /></label>
-          <p class="wl-hint">In Italia: 15%, ridotta dello 0,3% per ogni anno di adesione oltre il 15°, fino al 9%
+          <label class="an-field full"><span data-i18n="wl.f.tax">Tasse sulla prestazione (%)</span>
+            <input name="tax_pct" type="number" min="0" max="50" step="0.1" data-i18n-attr="placeholder:wl.f.taxPh" placeholder="es. 15" /></label>
+          <p class="wl-hint" data-i18n="wl.f.hintTax">In Italia: 15%, ridotta dello 0,3% per ogni anno di adesione oltre il 15°, fino al 9%
             (dopo 35 anni). Metti l'aliquota che prevedi di avere al pensionamento.</p>
         </fieldset>
 
         <fieldset data-kinds="real_estate">
-          <legend>Mutuo</legend>
-          <label class="wl-check"><input type="checkbox" name="has_mortgage" /> C'è un mutuo su questo immobile</label>
-          <div class="wl-modes full" data-mortgage role="radiogroup" aria-label="Come inserire il mutuo">
+          <legend data-i18n="wl.f.mortgage">Mutuo</legend>
+          <label class="wl-check"><input type="checkbox" name="has_mortgage" /> <span data-i18n="wl.f.hasMortgage">C'è un mutuo su questo immobile</span></label>
+          <div class="wl-modes full" data-mortgage role="radiogroup" data-i18n-attr="aria-label:wl.f.modeAria" aria-label="Come inserire il mutuo">
             <label><input type="radio" name="mortgage_mode" value="payment_end" checked />
-              <span><strong>So la rata e quando finisce</strong><small>rata, TAN, data ultima rata</small></span></label>
+              <span><strong data-i18n="wl.f.modeSimple">So la rata e quando finisce</strong><small data-i18n="wl.f.modeSimpleSub">rata, TAN, data ultima rata</small></span></label>
             <label><input type="radio" name="mortgage_mode" value="loan_terms" />
-              <span><strong>Ho il contratto</strong><small>importo, TAN, durata, data stipula</small></span></label>
+              <span><strong data-i18n="wl.f.modeTerms">Ho il contratto</strong><small data-i18n="wl.f.modeTermsSub">importo, TAN, durata, data stipula</small></span></label>
           </div>
-          <label class="an-field" data-mortgage data-mode="payment_end">Rata mensile (€)
-            <input name="monthly_payment_simple" type="number" min="0" step="0.01" placeholder="es. 850" /></label>
-          <label class="an-field" data-mortgage>TAN annuo (%)
-            <input name="annual_rate_pct" type="number" min="0" max="30" step="0.01" placeholder="es. 3,2" /></label>
-          <label class="an-field" data-mortgage data-mode="payment_end">Data ultima rata
+          <label class="an-field" data-mortgage data-mode="payment_end"><span data-i18n="wl.f.payment">Rata mensile (€)</span>
+            <input name="monthly_payment_simple" type="number" min="0" step="0.01" data-i18n-attr="placeholder:wl.f.paymentPh" placeholder="es. 850" /></label>
+          <label class="an-field" data-mortgage><span data-i18n="wl.f.rate">TAN annuo (%)</span>
+            <input name="annual_rate_pct" type="number" min="0" max="30" step="0.01" data-i18n-attr="placeholder:wl.f.ratePh" placeholder="es. 3,2" /></label>
+          <label class="an-field" data-mortgage data-mode="payment_end"><span data-i18n="wl.f.endDate">Data ultima rata</span>
             <input name="end_date" type="date" /></label>
-          <label class="an-field" data-mortgage data-mode="payment_end">Importo erogato (€, facoltativo)
-            <input name="principal_simple" type="number" min="1" step="1000" placeholder="per la % rimborsata" /></label>
-          <label class="an-field" data-mortgage data-mode="loan_terms">Importo erogato (€)
+          <label class="an-field" data-mortgage data-mode="payment_end"><span data-i18n="wl.f.principalOpt">Importo erogato (€, facoltativo)</span>
+            <input name="principal_simple" type="number" min="1" step="1000" data-i18n-attr="placeholder:wl.f.principalOptPh" placeholder="per la % rimborsata" /></label>
+          <label class="an-field" data-mortgage data-mode="loan_terms"><span data-i18n="wl.f.principal">Importo erogato (€)</span>
             <input name="principal" type="number" min="1" step="1000" /></label>
-          <label class="an-field" data-mortgage data-mode="loan_terms">Durata (anni)
+          <label class="an-field" data-mortgage data-mode="loan_terms"><span data-i18n="wl.f.years">Durata (anni)</span>
             <input name="years" type="number" min="1" max="40" step="1" /></label>
-          <label class="an-field" data-mortgage data-mode="loan_terms">Data stipula
+          <label class="an-field" data-mortgage data-mode="loan_terms"><span data-i18n="wl.f.startDate">Data stipula</span>
             <input name="start_date" type="date" /></label>
-          <label class="an-field" data-mortgage data-mode="loan_terms">Rata mensile da banca (€, per controllo)
+          <label class="an-field" data-mortgage data-mode="loan_terms"><span data-i18n="wl.f.bankPayment">Rata mensile da banca (€, per controllo)</span>
             <input name="monthly_payment" type="number" min="0" step="0.01" /></label>
-          <label class="an-field full" data-mortgage>Debito residuo da estratto conto (€, facoltativo)
+          <label class="an-field full" data-mortgage><span data-i18n="wl.f.balance">Debito residuo da estratto conto (€, facoltativo)</span>
             <input name="balance_override" type="number" min="0" step="100" /></label>
-          <p class="wl-hint" data-mortgage data-mode="payment_end">Il debito residuo è il valore delle rate che mancano
+          <p class="wl-hint" data-mortgage data-mode="payment_end" data-i18n="wl.f.hintSimple">Il debito residuo è il valore delle rate che mancano
             all'ultima, scontate al TAN: scende da solo ogni mese. Trovi rata, TAN e data ultima rata nel piano di
             ammortamento o nell'app della banca.</p>
-          <p class="wl-hint" data-mortgage data-mode="loan_terms">Rata e debito residuo li calcoliamo dal piano alla
+          <p class="wl-hint" data-mortgage data-mode="loan_terms" data-i18n="wl.f.hintTerms">Rata e debito residuo li calcoliamo dal piano alla
             francese (rata costante); se metti la rata della banca controlliamo che i dati tornino.</p>
-          <p class="wl-hint" data-mortgage>Tasso variabile o rinegoziazioni: usa il debito residuo dell'estratto conto.
+          <p class="wl-hint" data-mortgage data-i18n="wl.f.hintVariable">Tasso variabile o rinegoziazioni: usa il debito residuo dell'estratto conto.
             Valore e mutuo sono riferiti all'intero immobile: la quota di proprietà li riproporziona.</p>
         </fieldset>
 
-        <label class="an-field full">Note
+        <label class="an-field full"><span data-i18n="wl.f.notes">Note</span>
           <textarea name="notes" rows="2" maxlength="500"></textarea></label>
       </form>
       <p id="wlFormError" class="wl-error" hidden></p>
       <div class="wl-form-actions">
-        <button type="button" class="btn btn-ghost" id="wlCancel">Annulla</button>
-        <button type="submit" class="btn btn-primary" form="wlForm" id="wlSave">Salva</button>
+        <button type="button" class="btn btn-ghost" id="wlCancel" data-i18n="wl.cancel">Annulla</button>
+        <button type="submit" class="btn btn-primary" form="wlForm" id="wlSave" data-i18n="wl.save">Salva</button>
       </div>
     </div>
   </div>

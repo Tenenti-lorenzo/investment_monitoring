@@ -2,6 +2,8 @@
    PortfolioLab – Chart.js renderers for /altri-investimenti
    Exposes window.WealthCharts. Colors come from the CSS tokens in analisi.css
    (validated categorical palette, fixed order); context gray for "paid in".
+   Labels are read from the dictionary at build time, so a rebuild picks up
+   the current language.
 ═══════════════════════════════════════ */
 
 (function () {
@@ -35,6 +37,7 @@
   Chart.defaults.elements.bar.borderRadius = 4;
 
   const { eur } = Wealth;
+  const t = k => I18n.t(k);
   const charts = {};
   const builders = {};
   // Theme switch: rebuild with the new tokens (dataset colors are baked in at build time).
@@ -69,8 +72,8 @@
       data: {
         labels: policies.map(p => p.name),
         datasets: [
-          { label: 'Premi versati', data: policies.map(p => p.paid_so_far), backgroundColor: C.context },
-          { label: 'Valore di riscatto', data: policies.map(p => p.current_value), backgroundColor: C.s[0] },
+          { label: t('wl.ch.paid'), data: policies.map(p => p.paid_so_far), backgroundColor: C.context },
+          { label: t('wl.ch.surrender'), data: policies.map(p => p.current_value), backgroundColor: C.s[0] },
         ],
       },
       options: {
@@ -86,11 +89,11 @@
     draw(id, () => {
       const fullGuarantee = p.guaranteed && p.guaranteed.every((g, i) => g === p.paid[i]);  // Ramo I
       const ds = [
-        line('Valore stimato', p.value, branchColor(p.branch)),
-        line(fullGuarantee ? 'Premi versati = capitale garantito' : 'Premi versati', p.paid, C.context,
+        line(t('wl.ch.estimated'), p.value, branchColor(p.branch)),
+        line(fullGuarantee ? t('wl.ch.paidGuaranteed') : t('wl.ch.paid'), p.paid, C.context,
           { borderWidth: 1.5, ...(fullGuarantee ? { borderDash: [5, 4] } : {}) }),
       ];
-      if (p.guaranteed && !fullGuarantee) ds.push(line('Capitale garantito', p.guaranteed, C.context, { borderDash: [5, 4], borderWidth: 1.5 }));
+      if (p.guaranteed && !fullGuarantee) ds.push(line(t('wl.ch.guaranteed'), p.guaranteed, C.context, { borderDash: [5, 4], borderWidth: 1.5 }));
       return {
         type: 'line',
         data: { labels: p.years, datasets: ds },
@@ -108,7 +111,8 @@
     draw(id, () => {
       const band = (label, data, fill, a) => ({ label, data, borderWidth: 0, pointRadius: 0,
         backgroundColor: alpha(C.s[0], a), fill });
-      const names = { p5: '5° percentile', p25: '25° percentile', b95: '95° percentile', b75: '75° percentile' };
+      // Band datasets keep internal ids as labels (legend filter); names are for display.
+      const names = { p5: t('wl.ch.p5'), p25: t('wl.ch.p25'), b95: t('wl.ch.p95'), b75: t('wl.ch.p75') };
       return {
         type: 'line',
         data: { labels: sim.years, datasets: [
@@ -116,8 +120,8 @@
           band('b95', sc.p95, 0, 0.14),
           band('p25', sc.p25, false, 0),
           band('b75', sc.p75, 2, 0.28),
-          line('Mediana (lordo)', sc.p50, C.s[0]),
-          line('Versato', sim.paid, C.context, { borderWidth: 1.5 }),
+          line(t('wl.ch.median'), sc.p50, C.s[0]),
+          line(t('wl.ch.contributed'), sim.paid, C.context, { borderWidth: 1.5 }),
         ] },
         options: {
           interaction: lineTooltip,
@@ -125,7 +129,7 @@
             legend: { labels: {
               filter: i => !['p5', 'p25'].includes(i.text),
               generateLabels: chart => Chart.defaults.plugins.legend.labels.generateLabels(chart).map(l => ({
-                ...l, text: l.text === 'b95' ? '5–95% degli scenari' : l.text === 'b75' ? '25–75% degli scenari' : l.text,
+                ...l, text: l.text === 'b95' ? t('wl.ch.band95') : l.text === 'b75' ? t('wl.ch.band75') : l.text,
               })),
             } },
             tooltip: { callbacks: { label: c => `${names[c.dataset.label] || c.dataset.label}: ${eur(c.raw)}` } },

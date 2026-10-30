@@ -2,90 +2,97 @@
    PortfolioLab – Altri investimenti (page /altri-investimenti)
    CRUD on /api/assets; the tables show the server valuation from
    /api/wealth/summary (ownership share, mortgage amortisation).
+   Texts come from static/i18n/wealth*.js; on 'langchange' everything is
+   re-rendered from the data already loaded.
 ═══════════════════════════════════════ */
 
 (function () {
-  const { CATEGORIES, BRANCHES, esc, eur, signed, fmtDate } = Wealth;
+  const { CATEGORIES, BRANCHES, esc, eur, signed, num, fmtDate } = Wealth;
   const $ = id => document.getElementById(id);
+  const t = (k, v) => I18n.t(k, v);
 
   // Per kind: section copy, form labels, table columns [header, (valuation, asset) => html].
   const gainCols = (investedLabel) => [
     [investedLabel, v => eur(v.invested)],
-    ['Guadagno', v => signed(v.gain)],
+    [t('wl.col.gain'), v => signed(v.gain)],
   ];
   const KINDS = {
     life_insurance: {
-      desc: 'Ramo I, unit linked, multiramo, TCM. Valore = valore di riscatto alla data.',
-      labels: { provider: 'Compagnia', current_value: 'Valore di riscatto (€) *', invested: 'Premi versati (€)', annual_contribution: 'Premio annuo (€)' },
-      cols: [['Valore riscatto', v => eur(v.gross_value)], ...gainCols('Premi versati'),
-        ['Premio annuo', (v, a) => eur(a.annual_contribution)]],
+      desc: () => t('wl.li.desc'),
+      labels: () => ({ provider: t('wl.li.provider'), current_value: t('wl.li.value'), invested: t('wl.li.invested'), annual_contribution: t('wl.li.annual') }),
+      cols: () => [[t('wl.li.colValue'), v => eur(v.gross_value)], ...gainCols(t('wl.li.colInvested')),
+        [t('wl.li.colAnnual'), (v, a) => eur(a.annual_contribution)]],
     },
     pension_fund: {
-      desc: 'Fondi negoziali, aperti e PIP. Valore = posizione maturata dall\'ultimo estratto.',
-      labels: { provider: 'Fondo', current_value: 'Posizione maturata (€) *', invested: 'Contributi versati (€)', annual_contribution: 'Contributo annuo (€)' },
-      cols: [['Posizione', v => eur(v.gross_value)], ...gainCols('Versato'),
-        ['Contributo annuo', (v, a) => eur(a.annual_contribution)]],
+      desc: () => t('wl.pf.desc'),
+      labels: () => ({ provider: t('wl.pf.provider'), current_value: t('wl.pf.value'), invested: t('wl.pf.invested'), annual_contribution: t('wl.pf.annual') }),
+      cols: () => [[t('wl.pf.colValue'), v => eur(v.gross_value)], ...gainCols(t('wl.pf.colInvested')),
+        [t('wl.pf.colAnnual'), (v, a) => eur(a.annual_contribution)]],
     },
     real_estate: {
-      desc: 'Casa di abitazione, seconde case, immobili a reddito. Il mutuo residuo viene sottratto.',
-      labels: { provider: 'Indirizzo / città', current_value: 'Valore di mercato (€) *', invested: 'Prezzo di acquisto (€)' },
-      cols: [['Valore (quota)', v => eur(v.gross_value)],
-        ['Mutuo residuo', v => (v.mortgage ? `<span class="neg">${eur(-v.liability)}</span>` : '—')],
-        ['Netto', v => `<strong>${eur(v.net_value)}</strong>`],
-        ['Rata', v => (v.mortgage ? eur(v.mortgage.monthly_payment) + paymentBadge(v.mortgage) : '—')],
-        ['Fine mutuo', v => (v.mortgage ? fmtDate(v.mortgage.end_date) : '—')]],
+      desc: () => t('wl.re.desc'),
+      labels: () => ({ provider: t('wl.re.provider'), current_value: t('wl.re.value'), invested: t('wl.re.invested') }),
+      cols: () => [[t('wl.re.colValue'), v => eur(v.gross_value)],
+        [t('wl.re.colMortgage'), v => (v.mortgage ? `<span class="neg">${eur(-v.liability)}</span>` : '—')],
+        [t('wl.re.colNet'), v => `<strong>${eur(v.net_value)}</strong>`],
+        [t('wl.re.colPayment'), v => (v.mortgage ? eur(v.mortgage.monthly_payment) + paymentBadge(v.mortgage) : '—')],
+        [t('wl.re.colEnd'), v => (v.mortgage ? fmtDate(v.mortgage.end_date) : '—')]],
     },
     private: {
-      desc: 'Private equity / debt, venture, club deal, crowdfunding, quote di società non quotate.',
-      labels: { provider: 'Piattaforma / gestore', current_value: 'Valore attuale / NAV (€) *', invested: 'Capitale investito (€)', annual_contribution: 'Richiami annui previsti (€)' },
-      cols: [['Valore / NAV', v => eur(v.gross_value)], ...gainCols('Investito')],
+      desc: () => t('wl.pm.desc'),
+      labels: () => ({ provider: t('wl.pm.provider'), current_value: t('wl.pm.value'), invested: t('wl.pm.invested'), annual_contribution: t('wl.pm.annual') }),
+      cols: () => [[t('wl.pm.colValue'), v => eur(v.gross_value)], ...gainCols(t('wl.pm.colInvested'))],
     },
     other: {
-      desc: 'Conti deposito, TFR in azienda, oro fisico, crediti, beni da collezione…',
-      labels: { provider: 'Banca / dove', current_value: 'Valore attuale (€) *', invested: 'Costo (€)' },
-      cols: [['Valore', v => eur(v.gross_value)], ...gainCols('Costo')],
+      desc: () => t('wl.ot.desc'),
+      labels: () => ({ provider: t('wl.ot.provider'), current_value: t('wl.ot.value'), invested: t('wl.ot.invested') }),
+      cols: () => [[t('wl.ot.colValue'), v => eur(v.gross_value)], ...gainCols(t('wl.ot.colInvested'))],
     },
   };
   // Bank instalment vs the one computed from amount, rate and duration.
   function paymentBadge(m) {
     if (m.payment_consistent == null) return '';
     return m.payment_consistent
-      ? ' <span class="tag" title="Coincide con la rata della banca">✓ banca</span>'
-      : ` <span class="tag warn" title="La banca indica ${eur(m.declared_payment)}">⚠️ banca ${eur(m.declared_payment)}</span>`;
+      ? ` <span class="tag" title="${esc(t('wl.mort.bankOkTitle'))}">${t('wl.mort.bankOk')}</span>`
+      : ` <span class="tag warn" title="${esc(t('wl.mort.bankDiffTitle', { amount: eur(m.declared_payment) }))}">${t('wl.mort.bankDiff', { amount: eur(m.declared_payment) })}</span>`;
   }
   function paymentWarnings(rows) {
     const bad = rows.filter(v => v.mortgage?.payment_consistent === false);
     if (!bad.length) return '';
-    return `<div class="an-explain"><strong>Dati del mutuo da controllare.</strong> ${bad.map(v => {
+    return `<div class="an-explain"><strong>${t('wl.mort.checkTitle')}</strong> ${bad.map(v => {
       const m = v.mortgage;
       const why = m.implied_years == null
-        ? 'con quel tasso la rata della banca non copre nemmeno gli interessi: controlla il TAN'
-        : `con quel tasso la rata della banca corrisponde a una durata di circa ${m.implied_years.toLocaleString('it-IT')} anni`;
-      return `<br>• <strong>${esc(v.name)}</strong>: rata calcolata ${eur(m.monthly_payment)}, banca ${eur(m.declared_payment)}; ${why}.
-        Verifica importo erogato, TAN, durata e data (spese o assicurazioni incluse nella rata la fanno differire).`;
+        ? t('wl.mort.whyInterest')
+        : t('wl.mort.whyYears', { n: num(m.implied_years) });
+      return `<br>• <strong>${esc(v.name)}</strong>: ${t('wl.mort.checkLine', { calc: eur(m.monthly_payment), bank: eur(m.declared_payment), why })}`;
     }).join('')}</div>`;
   }
 
-  const DEFAULT_LABELS = { provider: 'Compagnia / gestore', current_value: 'Valore attuale (€) *', invested: 'Versato / costo (€)', annual_contribution: 'Versamento annuo (€)' };
+  const defaultLabels = () => ({ provider: t('wl.f.provider'), current_value: t('wl.f.value'), invested: t('wl.f.invested'), annual_contribution: t('wl.f.annual') });
 
-  const state = { assets: new Map(), valuations: [] };
+  const state = { assets: new Map(), valuations: [], summary: null, error: null };
   const form = $('wlForm');
   const fields = form.elements;  // named controls (form.name would also shadow HTMLFormElement.name)
+  let formCtx = null;            // { kind, editing } while the form is open
 
   // ── Skeleton ──────────────────────────────────
-  $('wlToc').innerHTML = Object.keys(KINDS).map(k =>
-    `<a href="#sec-${k}">${CATEGORIES[k].icon} ${CATEGORIES[k].label}</a>`).join('')
-    + '<a href="/patrimonio">📊 Patrimonio complessivo →</a>';
-  $('wlSections').innerHTML = Object.entries(KINDS).map(([k, cfg]) => `
+  $('wlSections').innerHTML = Object.keys(KINDS).map(k => `
     <section class="card" id="sec-${k}">
-      <div class="wl-head">
-        <div class="card-header"><h2><span class="wl-icon">${CATEGORIES[k].icon}</span>${CATEGORIES[k].label}</h2>
-          <p>${cfg.desc}</p></div>
-        <button type="button" class="btn btn-ghost btn-sm" data-add="${k}">+ Aggiungi</button>
-      </div>
+      <div class="wl-head"></div>
       <div id="tbl-${k}"></div>
       <div id="extra-${k}"></div>
     </section>`).join('');
+  function renderHeads() {
+    $('wlToc').innerHTML = Object.keys(KINDS).map(k =>
+      `<a href="#sec-${k}">${CATEGORIES[k].icon} ${CATEGORIES[k].label}</a>`).join('')
+      + `<a href="/patrimonio">${t('wl.toc.networth')}</a>`;
+    Object.entries(KINDS).forEach(([k, cfg]) => {
+      $(`sec-${k}`).querySelector('.wl-head').innerHTML = `
+        <div class="card-header"><h2><span class="wl-icon">${CATEGORIES[k].icon}</span>${CATEGORIES[k].label}</h2>
+          <p>${cfg.desc()}</p></div>
+        <button type="button" class="btn btn-ghost btn-sm" data-add="${k}">${t('wl.add')}</button>`;
+    });
+  }
 
   // ── Render ────────────────────────────────────
   function renderKpis(s) {
@@ -94,55 +101,68 @@
     const debt = own.reduce((t, c) => t + c.liabilities, 0);
     const n = own.reduce((t, c) => t + c.count, 0);
     $('wlKpis').innerHTML = `
-      <div class="kpi"><div class="kpi-label">Valore beni</div><div class="kpi-value">${eur(gross)}</div>
-        <div class="kpi-sub">${n} ${n === 1 ? 'voce' : 'voci'}</div></div>
-      <div class="kpi"><div class="kpi-label">Mutui residui</div><div class="kpi-value ${debt ? 'neg' : ''}">${eur(-debt)}</div>
-        <div class="kpi-sub">quota a tuo carico</div></div>
-      <div class="kpi"><div class="kpi-label">Netto fuori mercato</div><div class="kpi-value">${eur(gross - debt)}</div>
-        <div class="kpi-sub">esclusi i portafogli</div></div>
-      <div class="kpi"><div class="kpi-label">Patrimonio complessivo</div>
-        <div class="kpi-value" style="font-size:16px;margin-top:6px"><a href="/patrimonio">Apri la vista →</a></div>
-        <div class="kpi-sub">con i portafogli salvati</div></div>`;
+      <div class="kpi"><div class="kpi-label">${t('wl.kpi.value')}</div><div class="kpi-value">${eur(gross)}</div>
+        <div class="kpi-sub">${n === 1 ? t('wl.kpi.item', { n }) : t('wl.kpi.items', { n })}</div></div>
+      <div class="kpi"><div class="kpi-label">${t('wl.kpi.mortgages')}</div><div class="kpi-value ${debt ? 'neg' : ''}">${eur(-debt)}</div>
+        <div class="kpi-sub">${t('wl.kpi.mortgagesSub')}</div></div>
+      <div class="kpi"><div class="kpi-label">${t('wl.kpi.net')}</div><div class="kpi-value">${eur(gross - debt)}</div>
+        <div class="kpi-sub">${t('wl.kpi.netSub')}</div></div>
+      <div class="kpi"><div class="kpi-label">${t('wl.kpi.networth')}</div>
+        <div class="kpi-value" style="font-size:16px;margin-top:6px"><a href="/patrimonio">${t('wl.kpi.open')}</a></div>
+        <div class="kpi-sub">${t('wl.kpi.networthSub')}</div></div>`;
   }
 
   function renderTable(kind) {
-    const cfg = KINDS[kind];
+    const cols = KINDS[kind].cols();
     const rows = state.valuations.filter(v => v.kind === kind);
     const host = $(`tbl-${kind}`);
-    if (!rows.length) { host.innerHTML = '<p class="wl-empty">Nessuna voce. Usa "+ Aggiungi".</p>'; return; }
-    const head = `<tr><th>Nome</th>${cfg.cols.map(c => `<th>${c[0]}</th>`).join('')}<th></th></tr>`;
+    if (!rows.length) { host.innerHTML = `<p class="wl-empty">${t('wl.empty')}</p>`; return; }
+    const head = `<tr><th>${t('wl.col.name')}</th>${cols.map(c => `<th>${c[0]}</th>`).join('')}<th></th></tr>`;
     const body = rows.map(v => {
       const a = state.assets.get(v.asset_id) || {};
-      const sub = [v.provider, BRANCHES[a.insurance_branch], a.pension_line,
-        a.ownership_pct < 100 ? `quota ${a.ownership_pct}%` : ''].filter(Boolean).map(esc).join(' · ');
+      const sub = [v.provider, a.insurance_branch && BRANCHES[a.insurance_branch], a.pension_line,
+        a.ownership_pct != null && a.ownership_pct < 100 ? t('wl.tbl.share', { n: num(a.ownership_pct) }) : ''].filter(Boolean).map(esc).join(' · ');
       return `<tr><td class="name">${esc(v.name)}${sub ? `<span class="wl-sub">${sub}</span>` : ''}</td>
-        ${cfg.cols.map(c => `<td>${c[1](v, a)}</td>`).join('')}
-        <td><span class="wl-actions"><button type="button" data-edit="${v.asset_id}">Modifica</button>
-          <button type="button" class="del" data-del="${v.asset_id}">Elimina</button></span></td></tr>`;
+        ${cols.map(c => `<td>${c[1](v, a)}</td>`).join('')}
+        <td><span class="wl-actions"><button type="button" data-edit="${v.asset_id}">${t('wl.edit')}</button>
+          <button type="button" class="del" data-del="${v.asset_id}">${t('wl.delete')}</button></span></td></tr>`;
     }).join('');
     const tot = rows.reduce((t, v) => t + v.net_value, 0);
     host.innerHTML = `<div class="an-table-wrap"><table class="an-table"><thead>${head}</thead><tbody>${body}</tbody>
-      ${rows.length > 1 ? `<tfoot><tr><td>Totale netto</td><td colspan="${cfg.cols.length + 1}">${eur(tot)}</td></tr></tfoot>` : ''}
+      ${rows.length > 1 ? `<tfoot><tr><td>${t('wl.tbl.total')}</td><td colspan="${cols.length + 1}">${eur(tot)}</td></tr></tfoot>` : ''}
       </table></div>${kind === 'real_estate' ? paymentWarnings(rows) : ''}`;
   }
 
-  async function load() {
+  function renderStatus() {
     const status = $('wlStatus');
-    status.classList.remove('error');
+    status.classList.toggle('error', !!state.error);
+    status.textContent = state.error ? t('wl.error', { msg: state.error })
+      : state.summary ? '' : t('wl.loading');
+  }
+
+  function renderData() {
+    renderStatus();
+    if (!state.summary) return;
+    renderKpis(state.summary);
+    Object.keys(KINDS).forEach(renderTable);
+  }
+
+  async function load() {
+    state.error = null;
+    $('wlStatus').classList.remove('error');
     try {
       const [res, summary] = await Promise.all([Session.apiFetch('/api/assets'), Wealth.postSummary([])]);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       state.assets = new Map((await res.json()).map(a => [a.asset_id, a]));
       state.valuations = summary.assets;
-      status.textContent = '';
-      renderKpis(summary);
-      Object.keys(KINDS).forEach(renderTable);
+      state.summary = summary;
+      renderData();
       const byKind = k => [...state.assets.values()].filter(a => a.kind === k);
       WealthProjections.renderPolicies($('extra-life_insurance'), byKind('life_insurance').length);
       WealthProjections.renderPensions($('extra-pension_fund'), byKind('pension_fund'));
     } catch (e) {
-      status.classList.add('error');
-      status.textContent = `Errore: ${e.message}`;
+      state.error = e.message;
+      renderStatus();
     }
   }
 
@@ -161,15 +181,22 @@
       el.hidden = kindHidden(el) || !el.dataset.branches.split(' ').includes(fields.insurance_branch.value);
     });
   }
+  // Labels and title that depend on the asset kind (re-run on 'langchange').
+  function renderFormTexts() {
+    if (!formCtx) return;
+    const { kind, editing } = formCtx;
+    const labels = { ...defaultLabels(), ...KINDS[kind].labels() };
+    form.querySelectorAll('[data-label]').forEach(el => { el.textContent = labels[el.dataset.label]; });
+    $('wlFormTitle').textContent = `${editing ? t('wl.form.edit') : t('wl.form.new')} – ${CATEGORIES[kind].label}`;
+  }
 
   function openForm(kind, asset = null) {
     form.reset();
     $('wlFormError').hidden = true;
     fields.kind.value = kind;
     form.querySelectorAll('[data-kinds]').forEach(el => { el.hidden = !el.dataset.kinds.split(' ').includes(kind); });
-    const labels = { ...DEFAULT_LABELS, ...KINDS[kind].labels };
-    form.querySelectorAll('[data-label]').forEach(el => { el.textContent = labels[el.dataset.label]; });
-    $('wlFormTitle').textContent = `${asset ? 'Modifica' : 'Nuova voce'} – ${CATEGORIES[kind].label}`;
+    formCtx = { kind, editing: !!asset };
+    renderFormTexts();
     if (asset) {
       ['asset_id', 'name', 'provider', 'insurance_branch', 'pension_line', 'ownership_pct', 'current_value',
         'invested', 'annual_contribution', 'notes', 'insured_capital', 'maturity_date', 'expected_return_pct',
@@ -191,7 +218,7 @@
     $('wlModal').classList.remove('hidden');
     fields.name.focus();
   }
-  const closeForm = () => $('wlModal').classList.add('hidden');
+  const closeForm = () => { $('wlModal').classList.add('hidden'); formCtx = null; };
 
   function readForm() {
     const num = f => (fields[f].value === '' ? null : Number(fields[f].value));
@@ -235,14 +262,18 @@
     return body;
   }
 
+  // Validation errors (FastAPI 422 list) → field names in the interface language.
   function describeError(detail) {
-    if (!Array.isArray(detail)) return detail || 'Dati non validi';
-    const names = { name: 'nome', current_value: 'valore', principal: 'importo mutuo', years: 'durata',
-      start_date: 'data stipula', annual_rate_pct: 'tasso', ownership_pct: 'quota', monthly_payment: 'rata',
-      end_date: 'data ultima rata', mortgage: 'dati del mutuo',
-      birth_year: 'anno di nascita', retirement_age: 'età pensione', tax_pct: 'tasse',
-      expected_return_pct: 'rendimento atteso', ramo_i_share_pct: 'quota Ramo I', insured_capital: 'capitale assicurato' };
-    return 'Controlla: ' + [...new Set(detail.map(d => names[d.loc?.[d.loc.length - 1]] || d.loc?.slice(-1)[0]))].join(', ');
+    if (!Array.isArray(detail)) return detail || t('wl.err.invalid');
+    const names = { name: t('wl.err.f.name'), current_value: t('wl.err.f.current_value'), principal: t('wl.err.f.principal'),
+      years: t('wl.err.f.years'), start_date: t('wl.err.f.start_date'), annual_rate_pct: t('wl.err.f.annual_rate_pct'),
+      ownership_pct: t('wl.err.f.ownership_pct'), monthly_payment: t('wl.err.f.monthly_payment'),
+      end_date: t('wl.err.f.end_date'), mortgage: t('wl.err.f.mortgage'),
+      birth_year: t('wl.err.f.birth_year'), retirement_age: t('wl.err.f.retirement_age'), tax_pct: t('wl.err.f.tax_pct'),
+      expected_return_pct: t('wl.err.f.expected_return_pct'), ramo_i_share_pct: t('wl.err.f.ramo_i_share_pct'),
+      insured_capital: t('wl.err.f.insured_capital') };
+    const list = [...new Set(detail.map(d => names[d.loc?.[d.loc.length - 1]] || d.loc?.slice(-1)[0]))].join(', ');
+    return t('wl.err.check', { fields: list });
   }
 
   form.addEventListener('submit', async ev => {
@@ -282,7 +313,7 @@
     const del = ev.target.closest('[data-del]');
     if (del) {
       const a = state.assets.get(del.dataset.del);
-      if (!a || !confirm(`Eliminare "${a.name}"?`)) return;
+      if (!a || !confirm(t('wl.confirmDelete', { name: a.name }))) return;
       del.disabled = true;
       try {
         const res = await Session.apiFetch(`/api/assets/${encodeURIComponent(a.asset_id)}`, { method: 'DELETE' });
@@ -290,7 +321,7 @@
         await load();
       } catch {
         del.disabled = false;
-        alert('Errore nella eliminazione.');
+        alert(t('wl.deleteError'));
       }
     }
   });
@@ -300,6 +331,13 @@
     const a = state.assets.get(ev.detail);
     if (a) openForm(a.kind, a);
   });
+  window.addEventListener('langchange', () => {
+    renderHeads();
+    renderData();
+    renderFormTexts();
+  });
+  renderHeads();
+  renderStatus();
   Wealth.showUsername();
   load();
 })();

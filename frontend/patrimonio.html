@@ -1,16 +1,23 @@
 <!DOCTYPE html>
-<html lang="it">
+<html lang="it" data-i18n-title="nw.title">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>PortfolioLab – Patrimonio complessivo</title>
-  <meta name="description" content="Patrimonio netto complessivo: portafogli di mercato, polizze, fondo pensione, immobili al netto del mutuo e private markets." />
+  <meta name="description" data-i18n-attr="content:nw.meta" content="Patrimonio netto complessivo: portafogli di mercato, polizze, fondo pensione, immobili al netto del mutuo e private markets." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/static/css/style.css" />
   <script src="/static/js/theme.js"></script>
   <script src="/static/js/i18n.js"></script>
   <script src="/static/i18n/common.js"></script>
+  <script src="/static/i18n/session.js"></script>
+  <script src="/static/i18n/wealth.js"></script>
+  <script src="/static/i18n/wealth.en.js"></script>
+  <script src="/static/i18n/wealth.fr.js"></script>
+  <script src="/static/i18n/wealth.de.js"></script>
+  <script src="/static/i18n/wealth.es.js"></script>
+  <script src="/static/i18n/wealth.ja.js"></script>
   <link rel="stylesheet" href="/static/css/analisi.css" />
   <link rel="stylesheet" href="/static/css/patrimonio.css" />
   <script src="/static/js/session.js"></script>
@@ -35,22 +42,22 @@
       </div>
       <div class="nav-cta" style="display:flex;align-items:center;gap:12px">
         <span id="navUsername" style="font-size:13px;color:var(--muted)"></span>
-        <button class="btn btn-ghost btn-sm" type="button" onclick="doLogout()" data-i18n="nav.logout">
+        <button class="btn btn-ghost btn-sm" type="button" onclick="doLogout()" data-i18n="nav.logout">Esci</button>
       </div>
     </div>
   </nav>
 
   <main class="container an-main">
     <header class="an-title">
-      <h1>Patrimonio complessivo</h1>
-      <p>Portafogli di mercato salvati + polizze, fondo pensione, immobili, private markets e altri beni,
+      <h1 data-i18n="nw.h1">Patrimonio complessivo</h1>
+      <p data-i18n="nw.lead">Portafogli di mercato salvati + polizze, fondo pensione, immobili, private markets e altri beni,
         meno i mutui. Scegli quali portafogli includere: vengono contati al valore salvato sulla dashboard.</p>
     </header>
 
     <section class="card">
-      <div class="card-header"><h2>Portafogli inclusi</h2>
-        <p>Salva un portafoglio dalla dashboard per vederlo qui. In modalità % serve il valore totale dichiarato.</p></div>
-      <div id="nwPick" class="nw-pick"><span class="an-status">Caricamento…</span></div>
+      <div class="card-header"><h2 data-i18n="nw.pick.title">Portafogli inclusi</h2>
+        <p data-i18n="nw.pick.desc">Salva un portafoglio dalla dashboard per vederlo qui. In modalità % serve il valore totale dichiarato.</p></div>
+      <div id="nwPick" class="nw-pick"></div>
       <p id="nwWarn" class="an-notes" style="margin-top:8px"></p>
     </section>
 
@@ -58,36 +65,36 @@
 
     <section class="card nw-hero">
       <div id="nwKpis" class="kpi-row k4"></div>
-      <div id="nwStack" class="stackbar nw-stack" role="img" aria-label="Composizione del patrimonio"></div>
+      <div id="nwStack" class="stackbar nw-stack" role="img" data-i18n-attr="aria-label:nw.stackAria" aria-label="Composizione del patrimonio"></div>
       <div id="nwLegend" class="legend-inline"></div>
     </section>
 
     <div class="an-grid-2">
       <section class="card">
-        <div class="card-header"><h2>Per categoria</h2><p>Lordo, debiti e netto. Quota sul totale delle attività.</p></div>
+        <div class="card-header"><h2 data-i18n="nw.cat.title">Per categoria</h2><p data-i18n="nw.cat.desc">Lordo, debiti e netto. Quota sul totale delle attività.</p></div>
         <div id="nwBars" class="hbars"></div>
         <div class="an-table-wrap"><table class="an-table"><thead><tr>
-          <th>Categoria</th><th>Attività</th><th>Debiti</th><th>Netto</th><th>Quota</th></tr></thead>
+          <th data-i18n="nw.th.category">Categoria</th><th data-i18n="nw.th.assets">Attività</th><th data-i18n="nw.th.debts">Debiti</th><th data-i18n="nw.th.net">Netto</th><th data-i18n="nw.th.share">Quota</th></tr></thead>
           <tbody id="nwCats"></tbody><tfoot id="nwCatsFoot"></tfoot></table></div>
       </section>
       <section class="card">
-        <div class="card-header"><h2>Mutui</h2><p>Debito residuo, rata e avanzamento dell'ammortamento.</p></div>
+        <div class="card-header"><h2 data-i18n="nw.mort.title">Mutui</h2><p data-i18n="nw.mort.desc">Debito residuo, rata e avanzamento dell'ammortamento.</p></div>
         <div id="nwMortgages" class="nw-mortgages"></div>
       </section>
     </div>
 
     <section class="card">
-      <div class="card-header"><h2>Dettaglio voci</h2>
-        <p>Ogni voce con il suo valore netto. <a href="/altri-investimenti">Aggiungi o modifica →</a></p></div>
+      <div class="card-header"><h2 data-i18n="nw.rows.title">Dettaglio voci</h2>
+        <p data-i18n-html="nw.rows.desc">Ogni voce con il suo valore netto. <a href="/altri-investimenti">Aggiungi o modifica →</a></p></div>
       <div class="an-table-wrap"><table class="an-table"><thead><tr>
-        <th>Voce</th><th>Categoria</th><th>Valore</th><th>Debito</th><th>Netto</th><th>Guadagno</th></tr></thead>
+        <th data-i18n="nw.th.item">Voce</th><th data-i18n="nw.th.category">Categoria</th><th data-i18n="nw.th.value">Valore</th><th data-i18n="nw.th.debt">Debito</th><th data-i18n="nw.th.net">Netto</th><th data-i18n="nw.th.gain">Guadagno</th></tr></thead>
         <tbody id="nwRows"></tbody></table></div>
-      <div class="an-explain"><strong>Liquido</strong> = portafogli di mercato, vendibili in pochi giorni.
+      <div class="an-explain" data-i18n-html="nw.liquidNote"><strong>Liquido</strong> = portafogli di mercato, vendibili in pochi giorni.
         Polizze (riscatto con penali possibili), fondo pensione (vincolato fino alla pensione salvo anticipazioni),
         immobili e private markets sono considerati illiquidi.</div>
     </section>
 
-    <p class="an-disclaimer">Valori dichiarati, non prezzi live. Strumento informativo, non costituisce consulenza finanziaria.</p>
+    <p class="an-disclaimer" data-i18n="nw.disclaimer">Valori dichiarati, non prezzi live. Strumento informativo, non costituisce consulenza finanziaria.</p>
   </main>
 
   <script src="/static/js/wealth-common.js"></script>
