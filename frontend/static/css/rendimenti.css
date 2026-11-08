@@ -5,7 +5,7 @@
 .yd-tenors { display: inline-flex; background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 3px; }
 .yd-tenors button {
   background: transparent; border: 0; color: var(--muted); font: 600 13px var(--font);
-  padding: 7px 16px; border-radius: 6px; cursor: pointer;
+  padding: 7px 16px; border-radius: var(--radius-sm); cursor: pointer;
 }
 .yd-tenors button:hover { color: var(--text); }
 .yd-tenors button.active { background: var(--accent); color: #fff; }
@@ -27,7 +27,7 @@
 .yd-tooltip .yd-tt-row span:last-child { color: var(--text); font-variant-numeric: tabular-nums; }
 
 .yd-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
-.yd-legend-bar { width: 220px; height: 10px; border-radius: 5px; }
+.yd-legend-bar { width: 220px; height: 10px; border-radius: var(--radius-sm); }
 .yd-legend-na { margin-left: 16px; display: inline-flex; align-items: center; gap: 6px; }
 .yd-legend-na i { width: 12px; height: 10px; border-radius: 2px; background: var(--border); display: inline-block; }
 

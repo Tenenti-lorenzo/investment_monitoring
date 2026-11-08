@@ -122,9 +122,14 @@ function Invoke-LambdaUpdate([string]$ecrUrl) {
     $lambdaFn = Assert-TfOutput "lambda_function_name" ""
     Write-Host ""
     Write-Host "==> Aggiorno Lambda image" -ForegroundColor Cyan
+    # Pin the digest just pushed: re-sending the same ":latest" URI can leave the old image running.
+    $repo   = $ecrUrl.Split("/")[-1]
+    $digest = aws ecr describe-images --repository-name $repo --image-ids imageTag=latest `
+        --region $REGION --query "imageDetails[0].imageDigest" --output text
+    if ($LASTEXITCODE -ne 0 -or -not $digest) { throw "digest immagine non trovato su ECR" }
     aws lambda update-function-code `
         --function-name $lambdaFn `
-        --image-uri "${ecrUrl}:latest" `
+        --image-uri "${ecrUrl}@${digest}" `
         --region $REGION | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "lambda update-function-code fallito" }
     Write-Host "    Lambda aggiornata."
@@ -135,12 +140,20 @@ function Invoke-UploadStatic {
 
     Write-Host ""
     Write-Host "==> Upload static files su S3" -ForegroundColor Cyan
-    aws s3 sync frontend/static "s3://$bucket/static" --delete
+    # Browsers revalidate on every load (304 from the edge), CloudFront keeps a
+    # day and is invalidated on deploy. Without this header browsers guess a
+    # freshness from Last-Modified and mix stale CSS/JS with new HTML.
+    # cp --recursive re-uploads everything so the header reaches unchanged files
+    # too; sync --delete only removes files gone from the repo.
+    $cache = "public, max-age=0, must-revalidate, s-maxage=86400"
+    aws s3 cp frontend/static "s3://$bucket/static" --recursive --cache-control $cache --only-show-errors
+    if ($LASTEXITCODE -ne 0) { throw "s3 cp static fallito" }
+    aws s3 sync frontend/static "s3://$bucket/static" --delete --only-show-errors
     if ($LASTEXITCODE -ne 0) { throw "s3 sync fallito" }
-    aws s3 cp frontend/index.html "s3://$bucket/index.html"
-    aws s3 cp frontend/login.html "s3://$bucket/login.html"
-    aws s3 cp frontend/analisi.html "s3://$bucket/analisi.html"
-    aws s3 cp frontend/rendimenti.html "s3://$bucket/rendimenti.html"
+    foreach ($page in "index","login","analisi","rendimenti","altri-investimenti","patrimonio") {
+        aws s3 cp "frontend/$page.html" "s3://$bucket/$page.html" --cache-control $cache --only-show-errors
+        if ($LASTEXITCODE -ne 0) { throw "s3 cp $page.html fallito" }
+    }
     Write-Host "    File caricati su s3://$bucket"
 }
 

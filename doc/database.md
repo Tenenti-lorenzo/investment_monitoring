@@ -33,7 +33,13 @@ erDiagram
     string savedAt
     string holdings_count
   }
+  ASSETS {
+    string username PK
+    string asset_id SK
+    string data "JSON di OtherAsset (polizza, fondo pensione, immobile+mutuo, private, altro)"
+  }
   USERS ||--o{ PORTFOLIOS : "username"
+  USERS ||--o{ ASSETS : "username"
 ```
 
 - **users**: hash key `username`. Billing PAY_PER_REQUEST.
@@ -55,6 +61,9 @@ erDiagram
 | `list_portfolios_dynamo(username)` | username | lista ordinata per `savedAt` desc | `query` per username |
 | `load_portfolio_dynamo(username, portfolio_id)` | chiave | dict portafoglio o None | `get_item`; deserializza JSON |
 | `delete_portfolio_dynamo(username, portfolio_id)` | chiave | — | `delete_item` |
+| `save_asset_dynamo(username, asset)` | `OtherAsset` con `asset_id` | — | `put_item`; `data` = JSON del modello |
+| `list_assets_dynamo(username)` | username | `list[OtherAsset]` (item non validi saltati) | `query` paginata per username |
+| `delete_asset_dynamo(username, asset_id)` | chiave | — | `delete_item` |
 
 ## Interazioni con il backend
 

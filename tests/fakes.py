@@ -15,6 +15,7 @@ import numpy as np
 import pandas as pd
 
 from backend.price_history import PriceHistory
+from backend.wealth_models import OtherAsset
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -135,6 +136,7 @@ class FakeDB:
         self.users: dict[str, dict[str, Any]] = {}
         self.portfolios: dict[tuple[str, str], dict[str, Any]] = {}
         self.sessions: dict[tuple[str, str], dict[str, Any]] = {}
+        self.assets: dict[tuple[str, str], OtherAsset] = {}
         self._next = 0
 
     # users
@@ -234,3 +236,14 @@ class FakeDB:
 
     def delete_portfolio_dynamo(self, username: str, pid: str) -> None:
         self.portfolios.pop((username, pid), None)
+
+    # other assets
+    def save_asset_dynamo(self, username: str, asset: OtherAsset) -> None:
+        assert asset.asset_id
+        self.assets[(username, asset.asset_id)] = asset
+
+    def list_assets_dynamo(self, username: str) -> list[OtherAsset]:
+        return [a for (u, _), a in self.assets.items() if u == username]
+
+    def delete_asset_dynamo(self, username: str, asset_id: str) -> None:
+        self.assets.pop((username, asset_id), None)

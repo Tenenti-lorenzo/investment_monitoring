@@ -52,7 +52,7 @@
 /* Section nav */
 .an-toc { display: flex; flex-wrap: wrap; gap: 8px; }
 .an-toc a {
-  font-size: 12px; padding: 5px 10px; border: 1px solid var(--border); border-radius: 999px;
+  font-size: 12px; padding: 5px 10px; border: 1px solid var(--border); border-radius: var(--radius);
   color: var(--muted);
 }
 .an-toc a:hover { color: var(--text); border-color: var(--accent2); }
@@ -60,7 +60,7 @@
 /* KPI row */
 .kpi-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
 .kpi {
-  background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px;
+  background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 14px;
 }
 .kpi-row.k4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .kpi-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
@@ -104,8 +104,9 @@
 
 /* Horizontal share bars (HTML) */
 .hbars { display: grid; gap: 8px; }
-.hbar-row { display: grid; grid-template-columns: 130px 1fr 56px; gap: 10px; align-items: center; font-size: 13px; }
-.hbar-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.hbar-row { display: grid; grid-template-columns: 160px 1fr 56px; gap: 10px; align-items: center; font-size: 13px; }
+/* Long labels (fr/de/es sector names) wrap onto a second line instead of being cut */
+.hbar-label { color: var(--text); line-height: 1.25; overflow-wrap: anywhere; }
 .hbar-track { height: 10px; background: var(--bg); border-radius: 4px; overflow: hidden; }
 .hbar-fill { height: 100%; border-radius: 0 4px 4px 0; background: var(--series-1); }
 .hbar-val { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
@@ -138,7 +139,7 @@
 }
 @media (max-width: 560px) {
   .container { padding: 0 16px; }
-  .hbar-row { grid-template-columns: 96px 1fr 48px; }
+  .hbar-row { grid-template-columns: 110px 1fr 48px; }
   .an-field select#anSource { min-width: 0; width: 100%; }
   .an-field { flex: 1 1 100%; }
 }

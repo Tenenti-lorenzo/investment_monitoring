@@ -18,7 +18,8 @@ window.Theme = (function () {
     root.dataset.theme = theme;
     document.querySelectorAll('.theme-toggle').forEach(b => {
       b.textContent = theme === 'dark' ? '☀️' : '🌙';
-      b.title = theme === 'dark' ? 'Passa al tema chiaro' : 'Passa al tema scuro';
+      const it = theme === 'dark' ? 'Passa al tema chiaro' : 'Passa al tema scuro';
+      b.title = window.I18n ? I18n.t(theme === 'dark' ? 'theme.toLight' : 'theme.toDark') : it;
       b.setAttribute('aria-label', b.title);
     });
     window.dispatchEvent(new CustomEvent('themechange', { detail: { theme } }));
@@ -40,6 +41,8 @@ window.Theme = (function () {
     else { btn.classList.add('theme-toggle-floating'); document.body.appendChild(btn); }
     apply(current());
   }
+
+  window.addEventListener('langchange', () => apply(current()));  // translated tooltip
 
   root.dataset.theme = saved() || preferred();
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mountToggle);
