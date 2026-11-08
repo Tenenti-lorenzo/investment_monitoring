@@ -52,7 +52,7 @@
 /* Section nav */
 .an-toc { display: flex; flex-wrap: wrap; gap: 8px; }
 .an-toc a {
-  font-size: 12px; padding: 5px 10px; border: 1px solid var(--border); border-radius: 999px;
+  font-size: 12px; padding: 5px 10px; border: 1px solid var(--border); border-radius: var(--radius);
   color: var(--muted);
 }
 .an-toc a:hover { color: var(--text); border-color: var(--accent2); }
@@ -60,7 +60,7 @@
 /* KPI row */
 .kpi-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
 .kpi {
-  background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px;
+  background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 14px;
 }
 .kpi-row.k4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .kpi-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }

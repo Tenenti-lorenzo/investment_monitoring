@@ -6,7 +6,7 @@
   <title>PortfolioLab – Analizza il tuo portafoglio</title>
   <meta name="description" content="Inserisci i tuoi ISIN e analizza asset allocation, esposizione geografica e metriche del tuo portafoglio." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <link rel="stylesheet" href="/static/css/style.css" />
   <script src="/static/js/theme.js"></script>
@@ -26,17 +26,17 @@
     .doc-import-section { margin-bottom: 18px; }
     .doc-toggle-btn {
       width: 100%; background: transparent; border: 1px solid var(--border);
-      border-radius: 8px; padding: 10px 16px; color: var(--text); font-size: 14px;
+      border-radius: var(--radius-sm); padding: 10px 16px; color: var(--text); font-size: 14px;
       cursor: pointer; display: flex; align-items: center; justify-content: space-between;
       font-family: inherit; transition: border-color 0.2s;
     }
     .doc-toggle-btn:hover { border-color: var(--primary, #6366f1); }
     .doc-import-body {
       border: 1px solid var(--border); border-top: none;
-      border-radius: 0 0 8px 8px; padding: 16px;
+      border-radius: 0 0 var(--radius-sm) var(--radius-sm); padding: 16px;
     }
     .drop-zone {
-      border: 2px dashed var(--border); border-radius: 8px; padding: 24px;
+      border: 2px dashed var(--border); border-radius: var(--radius-sm); padding: 24px;
       text-align: center; cursor: pointer; color: var(--muted); font-size: 13px;
       transition: border-color 0.2s, background 0.2s; margin-bottom: 12px;
     }
@@ -47,7 +47,7 @@
     .drop-zone-icon { font-size: 28px; margin-bottom: 6px; }
     .uploaded-files-list { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
     .file-chip {
-      background: var(--card-bg); border: 1px solid var(--border); border-radius: 20px;
+      background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius);
       padding: 4px 10px; font-size: 12px; color: var(--muted);
       display: flex; align-items: center; gap: 6px;
     }
@@ -60,7 +60,7 @@
     .modal-overlay.hidden { display: none !important; }
     .modal-box {
       background: var(--card-bg, #1a1f35); border: 1px solid var(--border);
-      border-radius: 12px; padding: 24px; width: 100%; max-width: 580px;
+      border-radius: var(--radius); padding: 24px; width: 100%; max-width: 580px;
       max-height: 82vh; overflow-y: auto;
     }
     .modal-header {
@@ -68,7 +68,7 @@
     }
     .modal-header h3 { margin: 0; font-size: 17px; }
     .extract-item {
-      background: var(--bg, #0f1221); border: 1px solid var(--border); border-radius: 8px;
+      background: var(--bg, #0f1221); border: 1px solid var(--border); border-radius: var(--radius-sm);
       padding: 10px 12px; margin-bottom: 8px; display: flex; align-items: flex-start; gap: 10px;
     }
     .extract-item input[type=checkbox] { margin-top: 3px; flex-shrink: 0; accent-color: var(--primary, #6366f1); }
@@ -76,16 +76,16 @@
     .extract-item-sub { font-size: 12px; color: var(--muted); margin-top: 3px; }
     .extract-item-info { flex: 1; }
     .extract-item-pmc { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; }
-    .pmc-input { width: 90px; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--border); background: var(--input-bg, #1a1f35); color: var(--text); font-size: 12px; text-align: right; }
+    .pmc-input { width: 90px; padding: 4px 6px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--input-bg, #1a1f35); color: var(--text); font-size: 12px; text-align: right; }
     /* ── Restore banner ── */
     .restore-banner {
-      background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px;
+      background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius-sm);
       padding: 12px 16px; margin-bottom: 16px;
       display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
     }
     /* ── Toast ── */
     .toast {
-      background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px;
+      background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius-sm);
       padding: 10px 16px; font-size: 13px; color: var(--text);
       box-shadow: 0 4px 16px rgba(0,0,0,.4); animation: toastIn .2s ease;
     }
@@ -97,7 +97,7 @@
     }
     .btn-sm { padding: 6px 12px !important; font-size: 12px !important; }
     .period-btn {
-      background: var(--bg2, #1a1f35); border: 1px solid var(--border); border-radius: 6px;
+      background: var(--bg2, #1a1f35); border: 1px solid var(--border); border-radius: var(--radius-sm);
       padding: 4px 10px; color: var(--muted); font-size: 12px; cursor: pointer;
       font-family: inherit; transition: all 0.15s;
     }
@@ -142,7 +142,7 @@
         <span class="badge-free" data-i18n="badge.free">🆓 Gratuito</span>
         <span id="navUsername" style="font-size:13px;color:var(--muted)"></span>
         <button id="logoutBtn" onclick="doLogout()"
-          style="background:transparent;border:1px solid var(--border);border-radius:6px;
+          style="background:transparent;border:1px solid var(--border);border-radius:var(--radius-sm);
                  padding:5px 12px;color:var(--muted);font-size:12px;cursor:pointer;font-family:inherit;
                  transition:color .2s,border-color .2s"
           onmouseover="this.style.color='var(--text)';this.style.borderColor='var(--text)'"
@@ -277,7 +277,7 @@
           <button id="deepAnalysisBtn" class="btn btn-ghost" type="button" disabled data-i18n="dash.btn.deep">🔬 Analisi approfondita</button>
           <span id="saveBtnGroup" style="display:none;align-items:center;gap:6px">
             <input id="portfolioNameInput" type="text" placeholder="Nome portafoglio…" data-i18n-attr="placeholder:dash.save.ph"
-              style="background:var(--bg2);border:1px solid var(--border);border-radius:6px;
+              style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-sm);
                      padding:6px 10px;color:var(--text);font-size:13px;font-family:inherit;
                      outline:none;width:160px" />
             <button id="saveBtn" class="btn btn-ghost" type="button" data-i18n="dash.save.btn">💾 Salva</button>
@@ -288,7 +288,7 @@
         </div>
 
         <!-- ── PERFORMANCE (P&L) ── -->
-        <div id="plBanner" style="display:none;margin-top:16px;padding:14px 16px;background:var(--bg2);border:1px solid var(--border);border-radius:10px">
+        <div id="plBanner" style="display:none;margin-top:16px;padding:14px 16px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-sm)">
           <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
             <span style="font-size:13px;color:var(--muted)" data-i18n="dash.pl.banner">Portafoglio con quantità salvate — aggiorna i prezzi per vedere la performance attuale</span>
             <button id="valuateBtn" class="btn btn-primary btn-sm" type="button" data-i18n="dash.pl.valuate">Valorizza portafoglio</button>
@@ -297,7 +297,7 @@
         </div>
 
         <!-- ── PAC – Piano di Accumulo ── -->
-        <div id="pacSection" style="display:none;margin-top:16px;border:1px solid var(--border);border-radius:10px;overflow:hidden">
+        <div id="pacSection" style="display:none;margin-top:16px;border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden">
           <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--bg2);border-bottom:1px solid var(--border)">
             <h3 style="margin:0;font-size:15px" data-i18n="dash.pac.title">📅 Piano di Accumulo (PAC)</h3>
             <button id="addPacBtn" class="btn btn-ghost btn-sm" type="button" data-i18n="dash.pac.add">+ Aggiungi rata</button>
@@ -310,22 +310,22 @@
               <div style="display:flex;flex-direction:column;gap:4px">
                 <label style="font-size:11px;color:var(--muted)">Ticker / ISIN</label>
                 <input id="pacTicker" type="text" placeholder="es. SWRD o IE00B3RBWM25" data-i18n-attr="placeholder:dash.pac.tickerPh"
-                  style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:13px;width:180px;font-family:inherit" />
+                  style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 10px;color:var(--text);font-size:13px;width:180px;font-family:inherit" />
               </div>
               <div style="display:flex;flex-direction:column;gap:4px">
                 <label style="font-size:11px;color:var(--muted)" data-i18n="dash.pac.name">Nome (opz.)</label>
                 <input id="pacName" type="text" placeholder="Nome strumento" data-i18n-attr="placeholder:dash.pac.namePh"
-                  style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:13px;width:160px;font-family:inherit" />
+                  style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 10px;color:var(--text);font-size:13px;width:160px;font-family:inherit" />
               </div>
               <div style="display:flex;flex-direction:column;gap:4px">
                 <label style="font-size:11px;color:var(--muted)" data-i18n="dash.pac.amount">Importo per rata (EUR)</label>
                 <input id="pacAmount" type="number" min="1" step="10" value="100"
-                  style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:13px;width:120px;font-family:inherit" />
+                  style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 10px;color:var(--text);font-size:13px;width:120px;font-family:inherit" />
               </div>
               <div style="display:flex;flex-direction:column;gap:4px">
                 <label style="font-size:11px;color:var(--muted)" data-i18n="dash.pac.freq">Frequenza</label>
                 <select id="pacFrequency"
-                  style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:13px;font-family:inherit">
+                  style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 10px;color:var(--text);font-size:13px;font-family:inherit">
                   <option value="monthly" data-i18n="dash.pac.freq.monthly">Mensile</option>
                   <option value="biweekly" data-i18n="dash.pac.freq.biweekly">Bisettimanale</option>
                   <option value="weekly" data-i18n="dash.pac.freq.weekly">Settimanale</option>
@@ -335,7 +335,7 @@
               <div style="display:flex;flex-direction:column;gap:4px">
                 <label style="font-size:11px;color:var(--muted)" data-i18n="dash.pac.start">Data inizio</label>
                 <input id="pacStartDate" type="date"
-                  style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:13px;font-family:inherit" />
+                  style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 10px;color:var(--text);font-size:13px;font-family:inherit" />
               </div>
               <div style="display:flex;gap:6px">
                 <button id="pacSaveBtn" class="btn btn-primary btn-sm" type="button" data-i18n="dash.pac.save">Salva rata</button>
@@ -426,7 +426,7 @@
               <div class="card-header" style="display:flex;align-items:center;justify-content:space-between">
                 <h3 data-i18n-html="dash.d.metrics">Metriche di Portafoglio <small>(stima)</small></h3>
                 <button id="glossaryToggle" onclick="document.getElementById('glossaryPanel').classList.toggle('hidden')"
-                  style="background:none;border:1px solid var(--border);border-radius:6px;color:var(--muted);
+                  style="background:none;border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--muted);
                          font-size:12px;padding:3px 8px;cursor:pointer;font-family:inherit" data-i18n="dash.gl.toggle">ℹ Glossario</button>
               </div>
               <div id="metriche" class="metriche-grid"></div>

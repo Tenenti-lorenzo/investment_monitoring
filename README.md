@@ -58,7 +58,7 @@ Create a free account, then click **Load demo portfolio** to get a full dashboar
 
 ## Screenshots
 
-> Captured on a demo portfolio with live market data.
+> Captured on a demo portfolio with live market data (light theme; a dark theme is also available).
 
 ### Deep analysis — return since purchase
 TWR vs MWR, market value vs invested capital, benchmark comparison and drawdown.

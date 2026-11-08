@@ -298,7 +298,7 @@ function renderBondPanel(d) {
   }
   if (!metaLine && !riskLine && !marketLine) return '';
   return `
-    <div style="margin-top:10px;background:var(--bg);border-radius:8px;padding:10px 12px;border:1px solid var(--border)">
+    <div style="margin-top:10px;background:var(--bg);border-radius:var(--radius-sm);padding:10px 12px;border:1px solid var(--border)">
       <div style="font-size:10px;color:var(--muted);font-weight:700;margin-bottom:6px;letter-spacing:0.07em;text-transform:uppercase">${I18n.t('dash.bond.details')}</div>
       ${metaLine}${marketLine}${riskLine}
     </div>`;
@@ -307,7 +307,7 @@ function renderBondPanel(d) {
 function renderSearchResult(d) {
   const color = CAT_COLORS[d.category] || '#888';
   const isPct = inputMode === 'pct';
-  const inpStyle = 'background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:6px 8px;color:var(--text);font-size:13px;font-family:inherit;outline:none';
+  const inpStyle = 'background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 8px;color:var(--text);font-size:13px;font-family:inherit;outline:none';
   const mismatchWarn = d.isin_mismatch
     ? `<div class="sr-warn">${I18n.t('dash.sr.mismatch')}</div>`
     : '';
@@ -335,7 +335,7 @@ function renderSearchResult(d) {
     <span class="cat-badge" style="background:${color}22;color:${color};border:1px solid ${color}44">${catLabel(d.category)}</span>
     ${bondPanel}
 
-    <div style="margin-top:10px;background:var(--bg);border-radius:8px;padding:12px 14px;border:1px solid var(--border)">
+    <div style="margin-top:10px;background:var(--bg);border-radius:var(--radius-sm);padding:12px 14px;border:1px solid var(--border)">
       <div style="font-size:10px;color:var(--muted);font-weight:700;margin-bottom:10px;letter-spacing:0.07em;text-transform:uppercase">${I18n.t('dash.sr.position')}</div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
         <div style="display:flex;flex-direction:column;gap:4px">
@@ -706,7 +706,7 @@ function renderGeoChart(geo) {
         backgroundColor: colors.map(c => c + 'bb'),
         borderColor: colors,
         borderWidth: 1.5,
-        borderRadius: 6,
+        borderRadius: 2,
       }]
     },
     options: {
@@ -1362,17 +1362,17 @@ function renderPortfolioList() {
     const dateStr = isNaN(d) ? '' : d.toLocaleDateString(I18n.locale, { day:'2-digit', month:'short', year:'numeric' });
     return `
       <div style="display:flex;align-items:center;justify-content:space-between;
-                  padding:10px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px">
+                  padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:8px">
         <div>
           <div style="font-weight:600;font-size:14px">${p.name}</div>
           <div style="font-size:12px;color:var(--muted)">${dateStr} · ${I18n.t('dash.list.count', { n: p.holdings_count })}</div>
         </div>
         <div style="display:flex;gap:8px">
           <button onclick="loadPortfolio('${p.portfolio_id}')"
-            style="background:var(--accent);border:none;border-radius:6px;padding:5px 12px;
+            style="background:var(--accent);border:none;border-radius:var(--radius-sm);padding:5px 12px;
                    color:#fff;font-size:12px;cursor:pointer">${I18n.t('dash.list.load')}</button>
           <button onclick="deletePortfolio('${p.portfolio_id}', this)"
-            style="background:transparent;border:1px solid var(--red);border-radius:6px;padding:5px 12px;
+            style="background:transparent;border:1px solid var(--red);border-radius:var(--radius-sm);padding:5px 12px;
                    color:var(--red);font-size:12px;cursor:pointer">${I18n.t('dash.list.delete')}</button>
         </div>
       </div>`;
@@ -1603,7 +1603,7 @@ function renderPac() {
           <div style="font-size:13px">${dueLabel}</div>
         </div>
         <button onclick="removePacEntry(${i})"
-          style="background:transparent;border:1px solid var(--red);border-radius:6px;padding:4px 10px;
+          style="background:transparent;border:1px solid var(--red);border-radius:var(--radius-sm);padding:4px 10px;
                  color:var(--red);font-size:12px;cursor:pointer">${I18n.t('dash.list.delete')}</button>
       </div>
     `;

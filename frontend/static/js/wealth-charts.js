@@ -26,7 +26,7 @@
     Chart.defaults.plugins.tooltip.borderColor = C.border;
   }
   themeDefaults();
-  Chart.defaults.font.family = "'DM Sans', system-ui, sans-serif";
+  Chart.defaults.font.family = "'Inter', system-ui, sans-serif";
   Chart.defaults.font.size = 11;
   Chart.defaults.plugins.legend.labels.boxWidth = 10;
   Chart.defaults.plugins.legend.labels.boxHeight = 10;
@@ -34,7 +34,7 @@
   Chart.defaults.elements.line.borderWidth = 2;
   Chart.defaults.elements.point.radius = 0;
   Chart.defaults.elements.point.hoverRadius = 4;
-  Chart.defaults.elements.bar.borderRadius = 4;
+  Chart.defaults.elements.bar.borderRadius = 2;
 
   const { eur } = Wealth;
   const t = k => I18n.t(k);

@@ -6,7 +6,7 @@
   <title>PortfolioLab – Analizza il tuo portafoglio</title>
   <meta name="description" content="Analizza gratis il tuo portafoglio per ISIN o ticker: asset allocation, esposizione geografica e valutaria, look-through degli ETF, rischio e rendimenti dei titoli di Stato." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/static/css/style.css" />
   <script src="/static/js/theme.js"></script>
   <script src="/static/js/i18n.js"></script>
@@ -38,7 +38,7 @@
 
     /* Product preview (pure CSS mock of the dashboard) */
     .lp-preview {
-      margin-top: 34px; padding: 20px; border-radius: 18px;
+      margin-top: 34px; padding: 20px; border-radius: var(--radius);
       background: var(--card); border: 1px solid var(--border); box-shadow: var(--shadow-hover);
       display: grid; grid-template-columns: 150px 1fr; gap: 24px; align-items: center;
     }
@@ -61,12 +61,12 @@
     .lp-section > p { color: var(--muted); font-size: 14px; margin-bottom: 20px; }
     .lp-features { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
     .lp-feature {
-      background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 18px;
+      background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px;
       transition: transform .2s, border-color .2s, box-shadow .2s;
     }
     .lp-feature:hover { transform: translateY(-3px); border-color: var(--accent); box-shadow: var(--shadow); }
     .lp-feature .ic {
-      width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center;
+      width: 38px; height: 38px; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center;
       font-size: 18px; background: rgba(99,102,241,0.14); margin-bottom: 12px;
     }
     .lp-feature h3 { font-family: var(--font-head); font-size: 15px; margin-bottom: 6px; }
@@ -74,7 +74,7 @@
 
     /* ── Auth card ── */
     .auth-card {
-      background: var(--card); border: 1px solid var(--border); border-radius: 20px;
+      background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
       padding: 30px; box-shadow: var(--shadow-hover); position: relative; overflow: hidden;
     }
     .auth-card::before {
@@ -87,10 +87,10 @@
     .auth-tagline { font-size: 13px; color: var(--muted); margin-bottom: 22px; }
     .auth-tabs {
       display: flex; margin-bottom: 22px; padding: 4px; gap: 4px;
-      background: var(--bg2); border: 1px solid var(--border); border-radius: 12px;
+      background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius);
     }
     .tab-btn {
-      flex: 1; background: transparent; border: none; border-radius: 9px; padding: 9px 0;
+      flex: 1; background: transparent; border: none; border-radius: var(--radius-sm); padding: 9px 0;
       cursor: pointer; color: var(--muted); font-size: 14px;
       font-family: inherit; font-weight: 600; transition: color .2s, background-color .2s;
     }
@@ -102,12 +102,12 @@
     .auth-card label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; font-weight: 500; }
     .auth-card input {
       width: 100%; background: var(--bg2); border: 1.5px solid var(--border);
-      border-radius: 10px; padding: 11px 14px; color: var(--text);
+      border-radius: var(--radius-sm); padding: 11px 14px; color: var(--text);
       font-family: inherit; font-size: 14px; outline: none;
     }
     .auth-card input:focus { border-color: var(--accent); box-shadow: 0 0 0 4px rgba(99,102,241,0.15); }
     .auth-card .btn-primary {
-      width: 100%; justify-content: center; border-radius: 10px; padding: 12px;
+      width: 100%; justify-content: center; border-radius: var(--radius-sm); padding: 12px;
       font-size: 14px; margin-top: 4px;
     }
     .msg { margin-top: 12px; font-size: 13px; min-height: 20px; }
@@ -124,7 +124,7 @@
     }
     .reset-box {
       background: var(--bg2); border: 1px solid var(--border);
-      border-radius: 10px; padding: 12px 14px; margin-top: 12px;
+      border-radius: var(--radius-sm); padding: 12px 14px; margin-top: 12px;
       font-size: 12px; color: var(--muted); word-break: break-all;
     }
     .hint { font-size: 11px; color: var(--muted); margin-left: 4px; }
@@ -136,7 +136,7 @@
     .lp-flow { list-style: none; display: grid; gap: 12px; counter-reset: flow; }
     .lp-flow li, .lp-page {
       display: grid; grid-template-columns: 44px 1fr; gap: 14px; align-items: start;
-      background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px;
+      background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px;
     }
     .lp-flow li { position: relative; }
     .lp-flow li::after {
@@ -144,7 +144,7 @@
       font: 700 12px var(--font-head); color: var(--muted);
     }
     .lp-flow .ic, .lp-page .ic {
-      width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center;
+      width: 44px; height: 44px; border-radius: var(--radius); display: flex; align-items: center; justify-content: center;
       font-size: 22px; background: var(--bg2); border: 1px solid var(--border);
     }
     .lp-flow h4, .lp-page h4 { font-family: var(--font-head); font-size: 15px; margin-bottom: 4px; }
@@ -152,7 +152,7 @@
     .lp-pages { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
     .lp-note {
       margin-top: 14px; font-size: 13px; color: var(--muted); line-height: 1.6;
-      border-left: 3px solid var(--green); padding: 8px 12px; background: var(--bg2); border-radius: 0 10px 10px 0;
+      border-left: 3px solid var(--green); padding: 8px 12px; background: var(--bg2); border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
     }
     .lp-note strong { color: var(--text); }
 
