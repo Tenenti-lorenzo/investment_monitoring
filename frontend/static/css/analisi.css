@@ -19,6 +19,15 @@
   --critical-text: #f47171;
   --context: #5a6180;   /* de-emphasis gray for context series */
   --grid: rgba(255,255,255,0.06);
+  --tooltip-bg: #0b0d14;
+}
+
+:root[data-theme="light"] {
+  --good-text: #0a7d5f;
+  --critical-text: #c02626;
+  --context: #9aa1b8;
+  --grid: rgba(18,23,41,0.08);
+  --tooltip-bg: #121729;
 }
 
 .an-main { padding-top: 28px; padding-bottom: 60px; display: grid; gap: 18px; grid-template-columns: minmax(0, 1fr); }
@@ -90,7 +99,7 @@
   display: inline-block; font-size: 10.5px; padding: 1px 6px; border-radius: 4px;
   background: var(--border); color: var(--muted); margin-left: 4px;
 }
-.tag.warn { background: rgba(201,133,0,.18); color: #e0a93a; }
+.tag.warn { background: rgba(201,133,0,.18); color: var(--amber); }
 .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
 
 /* Horizontal share bars (HTML) */

@@ -33,9 +33,9 @@ resource "aws_s3_bucket_policy" "frontend" {
 
 data "aws_iam_policy_document" "s3_oac" {
   statement {
-    sid     = "AllowCloudFrontOAC"
-    effect  = "Allow"
-    actions = ["s3:GetObject"]
+    sid       = "AllowCloudFrontOAC"
+    effect    = "Allow"
+    actions   = ["s3:GetObject"]
     resources = ["${aws_s3_bucket.frontend.arn}/*"]
 
     principals {

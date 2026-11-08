@@ -1,0 +1,48 @@
+/* PortfolioLab – Rendimenti titoli di Stato (page /rendimenti). Builds on analisi.css. */
+
+.yd-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.yd-toolbar .btn { margin-left: auto; }
+.yd-tenors { display: inline-flex; background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 3px; }
+.yd-tenors button {
+  background: transparent; border: 0; color: var(--muted); font: 600 13px var(--font);
+  padding: 7px 16px; border-radius: 6px; cursor: pointer;
+}
+.yd-tenors button:hover { color: var(--text); }
+.yd-tenors button.active { background: var(--accent); color: #fff; }
+
+.yd-map-wrap { position: relative; margin-top: 14px; }
+#ydMap { width: 100%; height: auto; display: block; }
+#ydMap .country { stroke: var(--bg); stroke-width: .4; transition: opacity .15s; }
+#ydMap .country.has-data { cursor: pointer; }
+#ydMap .country.has-data:hover, #ydMap .country.selected { stroke: var(--text); stroke-width: 1.2; }
+#ydMap .graticule { fill: none; stroke: var(--border2); stroke-width: .4; }
+
+.yd-tooltip {
+  position: absolute; pointer-events: none; background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 8px 10px; font-size: 12.5px; box-shadow: var(--shadow);
+  min-width: 170px; z-index: 5;
+}
+.yd-tooltip strong { font-family: var(--font-head); font-size: 14px; }
+.yd-tooltip .yd-tt-row { display: flex; justify-content: space-between; gap: 12px; color: var(--muted); }
+.yd-tooltip .yd-tt-row span:last-child { color: var(--text); font-variant-numeric: tabular-nums; }
+
+.yd-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.yd-legend-bar { width: 220px; height: 10px; border-radius: 5px; }
+.yd-legend-na { margin-left: 16px; display: inline-flex; align-items: center; gap: 6px; }
+.yd-legend-na i { width: 12px; height: 10px; border-radius: 2px; background: var(--border); display: inline-block; }
+
+.yd-table th[data-sort] { cursor: pointer; user-select: none; }
+.yd-table th[data-sort]:hover { color: var(--text); }
+.yd-table th.sorted::after { content: ' ▾'; }
+.yd-table th.sorted.asc::after { content: ' ▴'; }
+.yd-table tbody tr { cursor: pointer; }
+.yd-table tbody tr:hover { background: var(--bg2); }
+.yd-table tbody tr.selected { background: var(--border2); }
+.yd-table tbody tr.na td:not(:first-child) { color: var(--muted); }
+.yd-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 8px; vertical-align: middle; }
+.yd-src { font-size: 10.5px; color: var(--muted); margin-left: 4px; }
+
+@media (max-width: 640px) {
+  .yd-legend-bar { width: 140px; }
+  .yd-legend-na { margin-left: 0; }
+}

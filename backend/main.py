@@ -15,8 +15,9 @@ import io
 import json
 import base64
 import secrets
-import smtplib
-from email.mime.text import MIMEText
+import hashlib
+import logging
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from dotenv import load_dotenv
@@ -41,9 +42,13 @@ import bcrypt as _bcrypt_lib
 from jose import jwt, JWTError
 from backend.bonds import classify_bond, fetch_sovereign_risk
 from backend.bond_market import BondQuote, fetch_bond_quote
+from backend.sovereign_yields import SovereignYieldsResponse, fetch_sovereign_yields
 from backend.analysis_models import DeepAnalysisRequest, DeepAnalysisResponse, LookThroughResponse
 from backend.deep_analysis import run_deep_analysis
-from backend.exceptions import InsufficientDataError
+from backend.captcha import CaptchaConfig, public_config, verify_captcha
+from backend.exceptions import ConfigurationError, InsufficientDataError
+from backend.fx_rates import FxRate, fetch_eur_rate
+from backend.password_reset_email import dev_reset_link_enabled, send_reset_email
 from backend.look_through import run_look_through
 from backend.superinvestors import (
     ConsensusStock,
@@ -63,17 +68,53 @@ from backend.database import (
     create_user,
     set_reset_token,
     set_password,
+    register_failed_login,
+    clear_failed_logins,
     save_portfolio_dynamo,
     list_portfolios_dynamo,
     load_portfolio_dynamo,
     delete_portfolio_dynamo,
 )
+from backend.session_store import (
+    create_session,
+    get_session,
+    rotate_session,
+    delete_session,
+    delete_user_sessions,
+)
 
-SECRET_KEY = os.getenv("SECRET_KEY", "change-me-in-production-use-a-long-random-string")
-# Sliding session: every authenticated call returns a fresh token in REFRESH_HEADER,
-# so the session only expires after this many minutes of inactivity.
-TOKEN_EXPIRE_MINUTES = 30
+logger = logging.getLogger(__name__)
+
+_MIN_SECRET_LEN = 32
+
+
+def _load_secret_key() -> str:
+    """JWT signing key. On AWS a missing or weak key aborts startup: with a guessable
+    key anyone could mint a token for any user."""
+    key = os.getenv("SECRET_KEY", "")
+    if len(key) >= _MIN_SECRET_LEN:
+        return key
+    if os.getenv("AWS_LAMBDA_FUNCTION_NAME"):
+        raise ConfigurationError(f"SECRET_KEY missing or shorter than {_MIN_SECRET_LEN} chars: refusing to start")
+    if key:
+        logger.warning("SECRET_KEY shorter than %d chars: acceptable only for local development", _MIN_SECRET_LEN)
+        return key
+    logger.warning("SECRET_KEY not set: using a random key, sessions end when the server restarts")
+    return secrets.token_urlsafe(48)
+
+
+SECRET_KEY = _load_secret_key()
+# Rotating session: every authenticated call returns a new token in REFRESH_HEADER and
+# invalidates the previous one; the session ends after this many minutes without activity.
+TOKEN_EXPIRE_MINUTES = 15
+ROTATION_GRACE_SECONDS = 30  # parallel requests may still carry a token just replaced
+MAX_RETIRED_TOKENS = 5
 REFRESH_HEADER = "X-Refreshed-Token"
+
+MIN_PASSWORD_LEN = 10
+MAX_FAILED_LOGINS = 5
+LOCK_MINUTES = 15
+BCRYPT_ROUNDS = int(os.getenv("BCRYPT_ROUNDS", "12"))
 
 _http_bearer = HTTPBearer()
 
@@ -105,32 +146,76 @@ if frontend_path.exists():
     def analysis_page():
         return FileResponse(str(frontend_path / "analisi.html"))
 
+    @app.get("/rendimenti")
+    def yields_page():
+        return FileResponse(str(frontend_path / "rendimenti.html"))
+
 
 # ─── Auth helpers ────────────────────────────────────────────────────────────
 
 def _hash_pw(pw: str) -> str:
-    return _bcrypt_lib.hashpw(pw.encode()[:72], _bcrypt_lib.gensalt(rounds=10)).decode()
+    return _bcrypt_lib.hashpw(pw.encode()[:72], _bcrypt_lib.gensalt(rounds=BCRYPT_ROUNDS)).decode()
 
 def _verify_pw(plain: str, hashed: str) -> bool:
     return _bcrypt_lib.checkpw(plain.encode()[:72], hashed.encode())
 
-def _create_token(username: str) -> str:
-    exp = datetime.now(timezone.utc) + timedelta(minutes=TOKEN_EXPIRE_MINUTES)
-    return jwt.encode({"sub": username, "exp": exp}, SECRET_KEY, algorithm="HS256")
+# Checked against unknown usernames so a failed login always costs one bcrypt.
+_DUMMY_HASH = _hash_pw(secrets.token_urlsafe(16))
+
+def _hash_reset_token(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+def _sign_token(username: str, sid: str, jti: str) -> str:
+    now = datetime.now(timezone.utc)
+    claims = {"sub": username, "sid": sid, "jti": jti, "iat": now, "exp": now + timedelta(minutes=TOKEN_EXPIRE_MINUTES)}
+    return jwt.encode(claims, SECRET_KEY, algorithm="HS256")
+
+def _start_session(username: str) -> str:
+    """Open a server-side session and return its first token."""
+    sid, jti = secrets.token_urlsafe(16), secrets.token_urlsafe(16)
+    create_session(username, sid, jti, int(time.time()) + TOKEN_EXPIRE_MINUTES * 60)
+    return _sign_token(username, sid, jti)
+
+def _decode_claims(token: str) -> tuple[str, str, str]:
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+    except JWTError:
+        raise HTTPException(401, "Sessione scaduta, effettua di nuovo il login")
+    username, sid, jti = payload.get("sub", ""), payload.get("sid", ""), payload.get("jti", "")
+    if not (username and sid and jti):
+        raise HTTPException(401, "Token non valido")
+    return username, sid, jti
 
 def get_current_user(
     response: Response,
     credentials: HTTPAuthorizationCredentials = Depends(_http_bearer),
 ) -> str:
-    try:
-        payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=["HS256"])
-    except JWTError:
+    """Authenticate and rotate: the presented token is replaced by a new one.
+
+    A superseded token is accepted only inside the short grace window; any later
+    use means it was copied, so the whole session is revoked.
+    """
+    username, sid, jti = _decode_claims(credentials.credentials)
+    now = int(time.time())
+    session = get_session(username, sid)
+    if not session or session["expires_at"] <= now:
         raise HTTPException(401, "Sessione scaduta, effettua di nuovo il login")
-    username: str = payload.get("sub", "")
-    if not username:
-        raise HTTPException(401, "Token non valido")
-    response.headers[REFRESH_HEADER] = _create_token(username)
-    return username
+    if jti == session["jti"]:
+        new_jti = secrets.token_urlsafe(16)
+        still_valid = [r for r in session["retired"] if r["until"] >= now]
+        retired = [{"jti": jti, "until": now + ROTATION_GRACE_SECONDS}, *still_valid][:MAX_RETIRED_TOKENS]
+        if rotate_session(username, sid, jti, new_jti, retired, now + TOKEN_EXPIRE_MINUTES * 60):
+            response.headers[REFRESH_HEADER] = _sign_token(username, sid, new_jti)
+            return username
+        session = get_session(username, sid)  # a parallel request rotated it first
+        if not session:
+            raise HTTPException(401, "Sessione scaduta, effettua di nuovo il login")
+    if any(r["jti"] == jti and r["until"] >= now for r in session["retired"]):
+        response.headers[REFRESH_HEADER] = _sign_token(username, sid, session["jti"])
+        return username
+    logger.warning("Superseded session token replayed for %s: session revoked", username)
+    delete_session(username, sid)
+    raise HTTPException(401, "Sessione non più valida, effettua di nuovo il login")
 
 
 # ─── Auth models ─────────────────────────────────────────────────────────────
@@ -139,13 +224,16 @@ class RegisterRequest(BaseModel):
     username: str
     email: str
     password: str
+    captcha_token: str = ""
 
 class LoginRequest(BaseModel):
     username: str
     password: str
+    captcha_token: str = ""
 
 class ForgotRequest(BaseModel):
     email: str
+    captcha_token: str = ""
 
 class ResetRequest(BaseModel):
     token: str
@@ -154,78 +242,122 @@ class ResetRequest(BaseModel):
 
 # ─── Auth routes ─────────────────────────────────────────────────────────────
 
+_USERNAME_RE = re.compile(r"^[\w.\-]{3,40}$")
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def _require_human(token: str, action: str) -> None:
+    if not verify_captcha(token, action):
+        raise HTTPException(403, "Verifica anti-bot non superata. Ricarica la pagina e riprova.")
+
+
+@app.get("/api/auth/config", response_model=CaptchaConfig)
+def auth_config() -> CaptchaConfig:
+    """Public settings the login page needs (reCAPTCHA site key)."""
+    return public_config()
+
+
 @app.post("/api/auth/register")
 def auth_register(req: RegisterRequest):
-    if len(req.password) < 6:
-        raise HTTPException(400, "La password deve avere almeno 6 caratteri")
+    _require_human(req.captcha_token, "register")
+    username = req.username.strip()
+    email = req.email.strip().lower()
+    if not _USERNAME_RE.match(username):
+        raise HTTPException(400, "Username non valido: 3-40 caratteri tra lettere, numeri, . _ -")
+    if not _EMAIL_RE.match(email):
+        raise HTTPException(400, "Indirizzo email non valido")
+    _check_password_strength(req.password)
     hashed = _hash_pw(req.password)
     try:
-        create_user(req.username.strip(), req.email.strip().lower(), hashed)
-    except ValueError as e:
+        create_user(username, email, hashed)
+    except ValueError:
         raise HTTPException(400, "Username o email già in uso")
-    token = _create_token(req.username.strip())
-    return {"status": "ok", "token": token, "username": req.username.strip()}
+    return {"status": "ok", "token": _start_session(username), "username": username}
+
+
+def _check_password_strength(pw: str) -> None:
+    if len(pw) < MIN_PASSWORD_LEN:
+        raise HTTPException(400, f"La password deve avere almeno {MIN_PASSWORD_LEN} caratteri")
+
+
+def _locked_out(until_iso: str) -> HTTPException:
+    left = datetime.fromisoformat(until_iso) - datetime.now(timezone.utc)
+    minutes = max(1, math.ceil(left.total_seconds() / 60))
+    return HTTPException(429, f"Troppi tentativi falliti. Account bloccato, riprova tra {minutes} minuti.")
 
 
 @app.post("/api/auth/login")
 def auth_login(req: LoginRequest):
-    user = get_user_by_username(req.username.strip())
-    if not user or not _verify_pw(req.password, user["hashed_password"]):
+    _require_human(req.captcha_token, "login")
+    username = req.username.strip()
+    user = get_user_by_username(username)
+    if not user:
+        _verify_pw(req.password, _DUMMY_HASH)  # same cost as a real check: no timing oracle
         raise HTTPException(401, "Credenziali non valide")
-    return {"token": _create_token(req.username.strip()), "username": req.username.strip()}
+    lock_until = user.get("lock_until")
+    if lock_until and datetime.fromisoformat(lock_until) > datetime.now(timezone.utc):
+        raise _locked_out(lock_until)
+    if not _verify_pw(req.password, user["hashed_password"]):
+        new_lock = register_failed_login(username, MAX_FAILED_LOGINS, LOCK_MINUTES)
+        if new_lock:
+            raise _locked_out(new_lock)
+        raise HTTPException(401, "Credenziali non valide")
+    if user.get("failed_logins") or lock_until:
+        clear_failed_logins(username)
+    return {"token": _start_session(username), "username": username}
+
+
+@app.post("/api/auth/logout")
+def auth_logout(credentials: HTTPAuthorizationCredentials = Depends(_http_bearer)):
+    """Revoke the session server-side (the token stops working immediately)."""
+    try:
+        username, sid, _ = _decode_claims(credentials.credentials)
+    except HTTPException:
+        return {"status": "ok"}  # already expired / invalid: nothing to revoke
+    delete_session(username, sid)
+    return {"status": "ok"}
 
 
 @app.post("/api/auth/forgot-password")
 def auth_forgot_password(req: ForgotRequest):
+    _require_human(req.captcha_token, "forgot")
     user = get_user_by_email(req.email.strip().lower())
-    # Always return OK to avoid revealing whether the email is registered
+    # Same answer whatever happens next: it must not reveal whether the email is registered.
+    generic = {"status": "ok", "message": "Se l'email è registrata riceverai a breve un link per reimpostare la password."}
     if not user:
-        return {"status": "ok", "message": "Se l'email è registrata riceverai le istruzioni."}
+        return generic
 
     token = secrets.token_urlsafe(32)
     expires = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
-    set_reset_token(user["username"], token, expires)
+    set_reset_token(user["username"], _hash_reset_token(token), expires)
 
     app_url = os.getenv("APP_URL", "http://localhost:8000")
     reset_url = f"{app_url}/login?reset_token={token}"
 
-    smtp_host = os.getenv("SMTP_HOST")
-    if smtp_host:
-        try:
-            msg = MIMEText(
-                f"Clicca il link per reimpostare la password:\n\n{reset_url}\n\n"
-                "Il link scade tra 1 ora."
-            )
-            msg["Subject"] = "Reimposta la tua password – PortfolioLab"
-            msg["From"] = os.getenv("SMTP_USER", "noreply@portfoliolab")
-            msg["To"] = req.email
-            with smtplib.SMTP(smtp_host, int(os.getenv("SMTP_PORT", "587"))) as s:
-                s.starttls()
-                s.login(os.getenv("SMTP_USER", ""), os.getenv("SMTP_PASS", ""))
-                s.sendmail(msg["From"], [req.email], msg.as_string())
-            return {"status": "ok", "message": "Email inviata. Controlla la tua casella di posta."}
-        except Exception:
-            pass  # Fall through to local-mode response
-
-    # SMTP not configured: return the link directly (local / dev mode)
-    return {
-        "status": "ok",
-        "reset_url": reset_url,
-        "message": "SMTP non configurato. Usa il link qui sotto per reimpostare la password.",
-    }
+    # The link is a credential: it goes only to the account's mailbox. Returning it
+    # in the response would let anyone who knows an email take over the account.
+    if dev_reset_link_enabled():
+        return {
+            "status": "ok",
+            "reset_url": reset_url,
+            "message": "Modalità sviluppo: usa il link qui sotto per reimpostare la password.",
+        }
+    if not send_reset_email(user["email"], reset_url):
+        logger.error("Password-reset email not delivered for user %s", user["username"])
+    return generic
 
 
 @app.post("/api/auth/reset-password")
 def auth_reset_password(req: ResetRequest):
-    user = get_user_by_reset_token(req.token)
+    user = get_user_by_reset_token(_hash_reset_token(req.token))
     if not user:
         raise HTTPException(400, "Token non valido")
     expires = datetime.fromisoformat(user["reset_token_expires"])
     if datetime.now(timezone.utc) > expires:
         raise HTTPException(400, "Token scaduto. Richiedi un nuovo link di recupero.")
-    if len(req.new_password) < 6:
-        raise HTTPException(400, "La password deve avere almeno 6 caratteri")
+    _check_password_strength(req.new_password)
     set_password(user["username"], _hash_pw(req.new_password))
+    delete_user_sessions(user["username"])  # a thief's open session dies with the old password
     return {"status": "ok", "message": "Password reimpostata con successo."}
 
 
@@ -479,6 +611,20 @@ def bond_quote(isin: str, _: str = Depends(get_current_user)) -> BondQuote:
     if quote is None:
         raise HTTPException(404, f"Obbligazione {isin} non trovata su Borsa Italiana")
     return quote
+
+
+@app.get("/api/bonds/sovereign-yields", response_model=SovereignYieldsResponse)
+def sovereign_yields(_: str = Depends(get_current_user)) -> SovereignYieldsResponse:
+    """10/20/30Y government-bond yields by country (world map page)."""
+    return fetch_sovereign_yields()
+
+
+@app.get("/api/fx/{currency}", response_model=FxRate)
+def fx_rate(currency: str, _: str = Depends(get_current_user)) -> FxRate:
+    """Units of ``currency`` per 1 EUR: sizes shares from a EUR target amount."""
+    if not re.fullmatch(r"[A-Za-z]{3}", currency):
+        raise HTTPException(400, "Valuta non valida")
+    return fetch_eur_rate(currency)
 
 
 @app.get("/api/search")
@@ -994,6 +1140,7 @@ class PortfolioSave(BaseModel):
     holdings: list
     liquidita: float = 0.0
     inputMode: str = "pct"
+    portfolioTotal: float = 0.0  # EUR value of the whole portfolio (sizes % allocations)
     pac_entries: list = []
     savedAt: Optional[str] = None
 
@@ -1144,6 +1291,8 @@ class PerformanceHolding(BaseModel):
 class PerformanceRequest(BaseModel):
     holdings: List[PerformanceHolding]
     liquidita: float = 0.0
+    # EUR value of holdings without a Yahoo ticker (e.g. bonds): held flat in the chart.
+    unpriced_amount: float = 0.0
 
 
 @app.post("/api/portfolio/performance")
@@ -1152,8 +1301,9 @@ def portfolio_performance(req: PerformanceRequest, _: str = Depends(get_current_
 
     series_list = []
     covered_amount = 0.0
+    flat_amount = max(req.unpriced_amount, 0.0)
     failed_tickers: list[str] = []
-    total_submitted = sum(h.amount for h in req.holdings if h.amount and h.amount > 0)
+    total_submitted = sum(h.amount for h in req.holdings if h.amount and h.amount > 0) + flat_amount
 
     for h in req.holdings:
         if not h.amount or h.amount <= 0 or not h.yf_ticker:
@@ -1162,11 +1312,13 @@ def portfolio_performance(req: PerformanceRequest, _: str = Depends(get_current_
             hist = yf.Ticker(h.yf_ticker).history(period="1y")["Close"]
             if hist.empty or len(hist) < 5:
                 failed_tickers.append(h.yf_ticker)
+                flat_amount += h.amount
                 continue
             series_list.append(hist / hist.iloc[-1] * h.amount)
             covered_amount += h.amount
         except Exception:
             failed_tickers.append(h.yf_ticker)
+            flat_amount += h.amount
             continue
 
     covered_pct = round(covered_amount / total_submitted * 100, 1) if total_submitted > 0 else 100.0
@@ -1175,7 +1327,7 @@ def portfolio_performance(req: PerformanceRequest, _: str = Depends(get_current_
         return {"dates": [], "values": [], "return_pct": 0, "initial_value": 0, "current_value": 0,
                 "covered_pct": covered_pct, "failed_tickers": failed_tickers}
 
-    combined = pd.concat(series_list, axis=1).ffill().bfill().sum(axis=1) + req.liquidita
+    combined = pd.concat(series_list, axis=1).ffill().bfill().sum(axis=1) + req.liquidita + flat_amount
     initial  = float(combined.iloc[0])
     current  = float(combined.iloc[-1])
     return_pct = round((current / initial - 1) * 100, 2) if initial > 0 else 0
